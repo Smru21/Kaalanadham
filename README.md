@@ -1,3 +1,7 @@
+<img width="739" height="1600" alt="12" src="https://github.com/user-attachments/assets/1403a747-8d20-4ca9-923e-6ef1423780be" />
+<img width="1672" height="941" alt="Kalanadam2" src="https://github.com/user-attachments/assets/222ee320-17c4-4c81-847c-df386217200e" />
+<img width="1536" height="1024" alt="Kalanadam3" src="https://github.com/user-attachments/assets/28e72ccc-6af4-4cc9-9ca3-c40a962b229e" />
+<img width="739" height="1600" alt="8" src="https://github.com/user-attachments/assets/4e240937-9132-4793-b574-84035307ef05" />
 # KĀLANĀDAM (Formerly Smart Bell) 🔔
 ### End-to-End ESP32-Based Automatic Institutional Bell & PA System
 
