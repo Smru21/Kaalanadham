@@ -12,7 +12,7 @@ KĀLANĀDAM is a professional-grade, web-controlled automatic bell system design
 ## 🖥️ Desktop Companion App
 For easier management of audio files and SD card synchronization, use the **KĀLANĀDAM Manager**. It automates the 4-digit file naming and folder structure required by the hardware.
 
-👉 **[Download KĀLANĀDAM Manager Here]([PASTE_LINK_TO_MANAGER_REPO])**
+👉 **[Download KĀLANĀDAM Manager Here](https://github.com/Smru21/K-LAN-DAM-Desktop-Manager-v1.0)**
 
 ---
 
