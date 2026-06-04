@@ -1,0 +1,3276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Bell</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="theme-color" content="#1a1a3e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Smart Bell">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0f0f1e;color:#fff;min-height:100vh}
+
+.header{background:linear-gradient(135deg,#1a1a3e,#16213e);padding:20px;text-align:center;border-bottom:2px solid #2a2a5e}
+.header h1{font-size:22px;margin-bottom:8px}
+.header .time{font-size:36px;color:#ffd700;font-weight:bold}
+.header .date{font-size:14px;color:#888;margin-top:4px}
+.header .status{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;margin-top:8px}
+.status-idle{background:#1a4a1a;color:#4caf50}
+.status-bell{background:#4a4a1a;color:#ffd700}
+.status-live{background:#4a1a1a;color:#f44336}
+.status-holiday{background:#1a3a4a;color:#00bcd4}
+
+.tabs{display:flex;background:#16213e;border-bottom:2px solid #2a2a5e;position:sticky;top:0;z-index:100;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;padding:12px 14px;text-align:center;cursor:pointer;font-size:12px;color:#888;border-bottom:3px solid transparent;transition:all 0.2s;user-select:none;white-space:nowrap}
+.tab.active{color:#fff;border-bottom-color:#ffd700;background:rgba(255,215,0,0.05)}
+
+.tab-content{display:none;padding:16px;max-width:500px;margin:0 auto}
+.tab-content.active{display:block}
+
+.card{background:#16213e;border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid #2a2a5e}
+.card h3{font-size:13px;color:#888;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+
+.form-row{display:flex;align-items:center;margin-bottom:12px;gap:10px}
+.form-row label{min-width:65px;font-size:14px;color:#aaa}
+input[type="number"],input[type="text"],input[type="date"],select{background:#0f0f1e;border:1px solid #2a2a5e;color:#fff;padding:10px;border-radius:8px;font-size:16px;width:100%}
+input:focus,select:focus{outline:none;border-color:#ffd700}
+select option{background:#0f0f1e;color:#fff}
+input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.8)}
+
+.days-row{display:flex;gap:5px;flex-wrap:wrap}
+.day-check{display:none}
+.day-label{display:inline-block;width:36px;height:36px;line-height:36px;text-align:center;border-radius:50%;background:#0f0f1e;border:2px solid #2a2a5e;font-size:11px;cursor:pointer;transition:all 0.2s;user-select:none}
+.day-check:checked+.day-label{background:#ffd700;color:#000;border-color:#ffd700;font-weight:bold}
+
+.btn{display:block;padding:12px 24px;border-radius:10px;border:none;font-size:15px;font-weight:bold;cursor:pointer;width:100%;transition:all 0.2s;text-align:center}
+.btn-primary{background:#ffd700;color:#000}
+.btn-primary:active{background:#e6c200}
+.btn-danger{background:#f44336;color:#fff}
+.btn-danger:active{background:#d32f2f}
+.btn-green{background:#4caf50;color:#fff}
+.btn-green:active{background:#388e3c}
+.btn-outline{background:transparent;border:2px solid #444;color:#aaa}
+.btn-outline:active{background:#222}
+.btn-small{padding:8px 12px;font-size:12px;width:auto;display:inline-block}
+
+.event-item{display:flex;align-items:center;padding:12px;background:#0f0f1e;border-radius:8px;margin-bottom:8px;transition:opacity 0.3s}
+.event-item.disabled{opacity:0.4}
+.event-item.interval-event{border-left:3px solid #ff9800}
+.event-item.onetime-event{border-left:3px solid #00bcd4}
+
+.event-time{font-size:20px;font-weight:bold;color:#ffd700;min-width:65px}
+.event-info{flex:1;margin-left:10px}
+.event-days{font-size:11px;color:#4caf50}
+.event-track{font-size:11px;color:#888;margin-top:2px}
+.event-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.event-delete{background:#4a1a1a;border:none;color:#f44336;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:16px}
+.event-delete:active{background:#6a2a2a}
+
+.toggle{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;top:0;left:0;right:0;bottom:0;background:#4a1a1a;border-radius:24px;cursor:pointer;transition:0.3s}
+.toggle-slider:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#f44336;border-radius:50%;transition:0.3s}
+.toggle input:checked+.toggle-slider{background:#1a4a1a}
+.toggle input:checked+.toggle-slider:before{transform:translateX(18px);background:#4caf50}
+
+.holiday-item{display:flex;align-items:center;padding:10px 12px;background:#0f0f1e;border-radius:8px;margin-bottom:6px}
+.holiday-date{font-size:15px;font-weight:bold;color:#00bcd4;min-width:100px}
+.holiday-name{flex:1;margin-left:10px;font-size:13px;color:#aaa}
+.holiday-delete{background:#4a1a1a;border:none;color:#f44336;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:14px}
+.holiday-delete:active{background:#6a2a2a}
+.holiday-badge{display:inline-block;background:#1a3a4a;color:#00bcd4;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px}
+.holiday-past{opacity:0.4}
+
+.action-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;border-radius:16px;border:2px solid;cursor:pointer;margin-bottom:12px;transition:all 0.2s;user-select:none}
+.bell-btn{background:linear-gradient(135deg,#2a1a4e,#1a1a3e);border-color:#a855f7}
+.bell-btn:active{background:#3a2a5e}
+.bell-btn.active{background:#4a2a6e;border-color:#ffd700}
+.live-btn{background:linear-gradient(135deg,#4a1a1a,#3a1a1a);border-color:#f44336}
+.live-btn:active{background:#5a2a2a}
+.live-btn.active{background:#6a2a2a;border-color:#ff0000;animation:pulse 1s infinite}
+.action-icon{font-size:36px;margin-bottom:8px}
+.action-label{font-size:18px;font-weight:bold}
+.action-sub{font-size:11px;color:#888;margin-top:4px}
+
+.ringtone-select{margin-bottom:16px}
+.ringtone-select select{font-size:14px;padding:12px}
+.ringtone-label{font-size:13px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(100px);background:#333;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;z-index:1000;transition:transform 0.3s;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+.empty-msg{text-align:center;color:#555;padding:30px;font-size:14px}
+
+.time-input{display:flex;align-items:center;gap:4px}
+.time-input input{width:65px;text-align:center}
+.time-input span{font-size:24px;color:#888}
+
+.info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1a1a3e}
+.info-label{color:#888;font-size:13px}
+.info-value{color:#fff;font-size:13px;font-weight:bold}
+
+.mt8{margin-top:8px}.mb8{margin-bottom:8px}
+
+.track-selector{position:relative;width:100%}
+.track-search{background:#0f0f1e;border:1px solid #2a2a5e;color:#fff;padding:10px;border-radius:8px;font-size:14px;width:100%;cursor:pointer}
+.track-search:focus{border-color:#ffd700;outline:none}
+.track-search::placeholder{color:#666}
+.track-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:#0f0f1e;border:1px solid #ffd700;border-top:none;border-radius:0 0 8px 8px;max-height:250px;overflow-y:auto;z-index:200}
+.track-dropdown.open{display:block}
+.track-dropdown-header{padding:8px 12px;color:#ffd700;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;background:#16213e;position:sticky;top:0;border-bottom:1px solid #2a2a5e}
+.track-dropdown-item{padding:10px 12px;cursor:pointer;font-size:13px;color:#ccc;border-bottom:1px solid #1a1a3e;transition:background 0.15s}
+.track-dropdown-item:hover{background:#1a1a3e;color:#fff}
+.track-dropdown-item.selected{background:#2a2a5e;color:#ffd700}
+.track-dropdown-item .track-num{color:#888;font-size:11px;margin-right:6px}
+.track-dropdown-item .track-name{color:#fff}
+.track-dropdown-empty{padding:16px;text-align:center;color:#555;font-size:13px}
+
+.theme-option{background:#0f0f1e;border:2px solid #2a2a5e;border-radius:12px;padding:14px 8px;text-align:center;cursor:pointer;transition:all 0.2s;user-select:none}
+.theme-option:active{transform:scale(0.95)}
+.theme-option.active{border-color:#ffd700;background:#1a1a3e;box-shadow:0 0 12px rgba(255,215,0,0.2)}
+
+.tpl-item{display:flex;align-items:center;padding:10px 12px;background:#0f0f1e;border-radius:8px;margin-bottom:6px}
+.tpl-info{flex:1}
+.tpl-name{font-size:14px;font-weight:bold;color:#a855f7}
+.tpl-count{font-size:11px;color:#888;margin-top:2px}
+.tpl-actions{display:flex;gap:4px;flex-shrink:0}
+.tpl-load{background:#1a4a1a;border:none;color:#4caf50;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:bold}
+.tpl-load:active{background:#2a5a2a}
+.tpl-delete{background:#4a1a1a;border:none;color:#f44336;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:14px}
+.tpl-delete:active{background:#6a2a2a}
+
+.log-entry{display:flex;gap:8px;padding:8px 10px;border-bottom:1px solid #222;align-items:flex-start}
+.log-entry:nth-child(odd){background:#1a1a1a}
+.log-entry:nth-child(even){background:#111}
+.log-time{color:#666;white-space:nowrap;min-width:100px;font-size:12px}
+.log-cat{font-weight:bold;white-space:nowrap;min-width:55px;font-size:12px}
+.log-msg{color:#ddd;word-break:break-word}
+.log-filter{padding:6px 12px;border-radius:20px;border:1px solid #555;background:#222;cursor:pointer;font-size:13px;transition:background 0.2s}
+.log-filter.active{background:#444}
+
+/* PWA Install Banner */
+.install-banner{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#1a1a3e,#16213e);border-top:2px solid #ffd700;padding:14px 16px;z-index:500;transform:translateY(100%);transition:transform 0.3s ease}
+.install-banner.show{transform:translateY(0)}
+.ib-wrap{max-width:500px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.ib-icon{font-size:32px;flex-shrink:0}
+.ib-text{flex:1}
+.ib-title{font-size:14px;font-weight:bold;color:#ffd700;margin-bottom:2px}
+.ib-sub{font-size:12px;color:#aaa;line-height:1.4}
+.ib-sub b{color:#ffd700}
+.ib-actions{display:flex;gap:8px;flex-shrink:0;align-items:center}
+.ib-btn{padding:8px 16px;border-radius:8px;border:none;background:#ffd700;color:#000;font-size:13px;font-weight:bold;cursor:pointer}
+.ib-btn:active{background:#e6c200}
+.ib-x{background:none;border:none;color:#666;font-size:20px;cursor:pointer;padding:4px 8px}
+.ib-x:active{color:#fff}
+.pwa-badge{display:inline-block;background:#1a4a1a;color:#4caf50;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px;vertical-align:middle}
+
+/* ========== SETUP WIZARD ========== */
+.wizard-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:8000;display:flex;align-items:center;justify-content:center}
+.wizard-box{background:#16213e;border-radius:16px;padding:24px;border:2px solid #ffd700;max-width:420px;width:92%;max-height:90vh;overflow-y:auto}
+.wizard-title{font-size:20px;font-weight:bold;color:#ffd700;text-align:center;margin-bottom:4px}
+.wizard-subtitle{font-size:13px;color:#888;text-align:center;margin-bottom:20px}
+.wizard-steps{display:flex;justify-content:center;gap:6px;margin-bottom:20px}
+.wizard-step{width:36px;height:4px;border-radius:2px;background:#2a2a5e;transition:background 0.3s}
+.wizard-step.active{background:#ffd700}
+.wizard-step.done{background:#4caf50}
+.wizard-label{font-size:14px;color:#ccc;margin-bottom:8px;font-weight:bold}
+.wizard-hint{font-size:12px;color:#666;margin-top:4px;margin-bottom:12px}
+.wizard-input{background:#0f0f1e;border:1px solid #2a2a5e;color:#fff;padding:10px;border-radius:8px;font-size:15px;width:100%;margin-bottom:10px}
+.wizard-input:focus{outline:none;border-color:#ffd700}
+.wizard-nav{display:flex;gap:10px;margin-top:16px}
+.wizard-nav .btn{flex:1}
+.wizard-skip{text-align:center;margin-top:10px}
+.wizard-skip a{color:#666;font-size:12px;cursor:pointer;text-decoration:underline}
+.wizard-skip a:hover{color:#aaa}
+.wizard-check{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0f0f1e;border-radius:8px;margin-bottom:6px;cursor:pointer;border:1px solid #2a2a5e}
+.wizard-check.selected{border-color:#ffd700;background:#1a1a3e}
+.wizard-check .wc-name{font-size:14px;color:#fff;flex:1}
+.wizard-check .wc-detail{font-size:11px;color:#888}
+.wizard-done-icon{font-size:48px;text-align:center;margin-bottom:12px}
+.wizard-summary{background:#0f0f1e;border-radius:8px;padding:12px;margin-bottom:12px}
+.wizard-summary .ws-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1a1a3e;font-size:13px}
+.wizard-summary .ws-label{color:#888}
+.wizard-summary .ws-value{color:#4caf50;font-weight:bold}
+.wizard-wifi-item{display:flex;align-items:center;padding:10px;background:#0f0f1e;border-radius:8px;margin-bottom:4px;cursor:pointer;border:1px solid #2a2a5e;transition:border-color 0.2s}
+.wizard-wifi-item:active{border-color:#ffd700}
+.wizard-wifi-name{flex:1;font-size:14px;color:#fff}
+.wizard-wifi-signal{font-size:11px;color:#888}
+
+/* ========== CONTEXT HELP ICONS ========== */
+.help-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#2a2a5e;color:#888;font-size:11px;font-weight:bold;cursor:pointer;margin-left:6px;vertical-align:middle;transition:all 0.2s;user-select:none;flex-shrink:0;line-height:1}
+.help-icon:active{background:#ffd700;color:#000}
+.help-text{display:none;background:#0f0f1e;border:1px solid #2a2a5e;border-radius:8px;padding:10px 12px;margin-top:6px;margin-bottom:8px;font-size:12px;color:#aaa;line-height:1.5}
+.help-text.show{display:block}
+.help-text b{color:#ffd700}
+.help-text code{background:#2a2a5e;padding:1px 5px;border-radius:4px;font-size:11px;color:#fff}
+
+/* ========== HELP TAB ========== */
+.help-section{background:#16213e;border-radius:12px;margin-bottom:10px;border:1px solid #2a2a5e;overflow:hidden}
+.help-section-header{display:flex;align-items:center;padding:14px 16px;cursor:pointer;user-select:none;transition:background 0.2s}
+.help-section-header:active{background:#1a1a3e}
+.help-section-icon{font-size:22px;margin-right:12px;flex-shrink:0}
+.help-section-title{flex:1;font-size:15px;font-weight:bold;color:#fff}
+.help-section-arrow{color:#555;font-size:16px;transition:transform 0.3s;flex-shrink:0}
+.help-section.open .help-section-arrow{transform:rotate(90deg);color:#ffd700}
+.help-section-body{display:none;padding:0 16px 16px 16px}
+.help-section.open .help-section-body{display:block}
+.help-p{font-size:13px;color:#aaa;line-height:1.7;margin-bottom:10px}
+.help-p b{color:#ffd700}
+.help-p code{background:#2a2a5e;padding:1px 6px;border-radius:4px;font-size:12px;color:#fff}
+.help-list{margin:8px 0 12px 16px;font-size:13px;color:#aaa;line-height:1.8}
+.help-list li{margin-bottom:4px}
+.help-list li b{color:#fff}
+.help-link{color:#4fc3f7;cursor:pointer;text-decoration:underline;font-size:13px}
+.help-link:active{color:#ffd700}
+.help-table{width:100%;border-collapse:collapse;margin:8px 0 12px 0;font-size:12px}
+.help-table th{text-align:left;padding:6px 8px;background:#0f0f1e;color:#ffd700;border-bottom:1px solid #2a2a5e}
+.help-table td{padding:6px 8px;border-bottom:1px solid #1a1a3e;color:#ccc}
+.help-table tr:nth-child(even) td{background:#0f0f1e}
+.help-combo{display:inline-block;background:#2a2a5e;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;margin:0 2px}
+.help-search{background:#0f0f1e;border:1px solid #2a2a5e;color:#fff;padding:10px 12px;border-radius:8px;font-size:14px;width:100%;margin-bottom:14px}
+.help-search:focus{outline:none;border-color:#ffd700}
+.help-search::placeholder{color:#555}
+.faq-item{background:#0f0f1e;border-radius:8px;margin-bottom:8px;border:1px solid #2a2a5e;overflow:hidden}
+.faq-q{display:flex;align-items:center;padding:12px;cursor:pointer;user-select:none}
+.faq-q:active{background:#1a1a3e}
+.faq-q-icon{color:#ffd700;margin-right:8px;font-weight:bold;font-size:14px;flex-shrink:0}
+.faq-q-text{flex:1;font-size:13px;color:#fff;font-weight:bold}
+.faq-q-arrow{color:#555;font-size:14px;transition:transform 0.3s;flex-shrink:0}
+.faq-item.open .faq-q-arrow{transform:rotate(90deg);color:#ffd700}
+.faq-a{display:none;padding:0 12px 12px 32px;font-size:13px;color:#aaa;line-height:1.6}
+.faq-item.open .faq-a{display:block}
+.faq-a b{color:#ffd700}
+.faq-a code{background:#2a2a5e;padding:1px 5px;border-radius:4px;font-size:11px;color:#fff}
+.faq-hidden{display:none}
+.help-about-box{background:#0f0f1e;border-radius:8px;padding:14px;text-align:center;border:1px solid #2a2a5e}
+.help-about-ver{font-size:24px;font-weight:bold;color:#ffd700;margin:8px 0}
+.help-about-feat{font-size:14px;color:#4caf50;margin-bottom:8px}
+.help-about-row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid #1a1a3e}
+.help-about-label{color:#888}
+.help-about-value{color:#fff}
+
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN OVERLAY ===== -->
+<div id="loginOverlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0f0f1e;z-index:9999;display:flex;align-items:center;justify-content:center;transition:opacity 0.4s">
+<div style="background:#16213e;border-radius:16px;padding:32px;border:1px solid #2a2a5e;max-width:320px;width:90%;text-align:center">
+<div style="font-size:48px;margin-bottom:16px">&#x1F514;</div>
+<h2 style="font-size:20px;margin-bottom:4px">Smart Bell</h2>
+<p style="font-size:13px;color:#888;margin-bottom:24px">Enter PIN to access controls</p>
+<input type="password" id="pinInput" maxlength="8" placeholder="Enter PIN"
+ style="background:#0f0f1e;border:2px solid #2a2a5e;color:#fff;padding:14px;border-radius:10px;font-size:24px;text-align:center;width:100%;letter-spacing:8px;margin-bottom:12px"
+ onkeydown="if(event.key==='Enter')doLogin()">
+<div id="loginError" style="color:#f44336;font-size:13px;margin-bottom:12px;min-height:18px"></div>
+<button class="btn btn-primary" onclick="doLogin()" style="margin-bottom:8px">&#x1F513; Unlock</button>
+<div style="font-size:11px;color:#555;margin-top:12px">Default PIN: 1234</div>
+</div>
+</div>
+
+<!-- ===== SETUP WIZARD OVERLAY ===== -->
+<div id="wizardOverlay" class="wizard-overlay" style="display:none">
+<div class="wizard-box">
+<div class="wizard-title" id="wizTitle">&#x1F514; Welcome to Smart Bell</div>
+<div class="wizard-subtitle" id="wizSubtitle">Let's set up your device</div>
+<div class="wizard-steps" id="wizSteps">
+<div class="wizard-step active" id="ws0"></div>
+<div class="wizard-step" id="ws1"></div>
+<div class="wizard-step" id="ws2"></div>
+<div class="wizard-step" id="ws3"></div>
+<div class="wizard-step" id="ws4"></div>
+</div>
+<div id="wizContent"></div>
+<div class="wizard-nav" id="wizNav"></div>
+<div class="wizard-skip" id="wizSkip"></div>
+</div>
+</div>
+
+<!-- ===== HEADER ===== -->
+<div class="header">
+<h1>&#x1F514; Smart Bell</h1>
+<div class="time" id="clock">--:--</div>
+<div class="date" id="dateDisplay">Loading...</div>
+<div class="status status-idle" id="statusBadge">Connecting...</div>
+</div>
+
+<!-- ===== TABS ===== -->
+<div class="tabs">
+<div class="tab active" onclick="switchTab('dashboard',this)">&#x1F3E0; Home</div>
+<div class="tab" onclick="switchTab('schedule',this)">&#x1F4C5; Schedule</div>
+<div class="tab" onclick="switchTab('settings',this)">&#x2699; Settings</div>
+<div class="tab" onclick="switchTab('controls',this)">&#x1F3AE; Controls</div>
+<div class="tab" onclick="switchTab('logs',this)">&#x1F4CB; Logs</div>
+<div class="tab" onclick="switchTab('help',this)">&#x2753; Help</div>
+</div>
+
+<!-- ===== DASHBOARD ===== -->
+<div id="tab-dashboard" class="tab-content active">
+<div class="card">
+<h3>System Status <span class="help-icon" onclick="toggleHelp('helpDash')">?</span></h3>
+<div class="help-text" id="helpDash">Shows <b>real-time device state</b>. State shows if bell is ringing or live mic is active. Holiday means today's bells are skipped. Events count is total scheduled bells.</div>
+<div class="info-row"><span class="info-label">State</span><span class="info-value" id="dashState">--</span></div>
+<div class="info-row"><span class="info-label">Scheduler</span><span class="info-value" id="dashSched">--</span></div>
+<div class="info-row"><span class="info-label">Events</span><span class="info-value" id="dashEvents">--</span></div>
+<div class="info-row"><span class="info-label">Audio</span><span class="info-value" id="dashAudio">--</span></div>
+<div class="info-row"><span class="info-label">Holiday</span><span class="info-value" id="dashHoliday">--</span></div>
+</div>
+<div class="card">
+<h3>Quick Actions</h3>
+<button class="btn btn-primary mb8" onclick="triggerBell()">&#x1F514; Ring Bell</button>
+<button class="btn btn-danger" onclick="triggerStop()">&#x23F9; Stop All</button>
+</div>
+</div>
+
+<!-- ===== SCHEDULE ===== -->
+<div id="tab-schedule" class="tab-content">
+<div class="card">
+<h3>Add New Event <span class="help-icon" onclick="toggleHelp('helpEvent')">?</span></h3>
+<div class="help-text" id="helpEvent">An <b>event</b> is a scheduled bell ring. Set the <b>time</b>, pick which <b>days</b> it should ring, and choose a <b>track</b> (music file on SD card). Events can be toggled on/off without deleting them.</div>
+<div class="form-row">
+<label>Name:</label>
+<input type="text" id="evName" maxlength="15" placeholder="e.g. Recess, Prayer...">
+</div>
+<div class="form-row">
+<label>Time:</label>
+<div class="time-input">
+<input type="number" id="evH" min="0" max="23" value="8">
+<span>:</span>
+<input type="number" id="evM" min="0" max="59" value="0">
+</div>
+</div>
+<div class="form-row" id="daysFormRow">
+<label>Days:</label>
+<div class="days-row">
+<input type="checkbox" id="d0" class="day-check"><label for="d0" class="day-label">Su</label>
+<input type="checkbox" id="d1" class="day-check" checked><label for="d1" class="day-label">Mo</label>
+<input type="checkbox" id="d2" class="day-check" checked><label for="d2" class="day-label">Tu</label>
+<input type="checkbox" id="d3" class="day-check" checked><label for="d3" class="day-label">We</label>
+<input type="checkbox" id="d4" class="day-check" checked><label for="d4" class="day-label">Th</label>
+<input type="checkbox" id="d5" class="day-check" checked><label for="d5" class="day-label">Fr</label>
+<input type="checkbox" id="d6" class="day-check"><label for="d6" class="day-label">Sa</label>
+</div>
+</div>
+
+<div class="form-row">
+<label>Type:</label>
+<select id="evType" onchange="toggleEventTypeFields()" style="width:100%">
+<option value="0">Fixed Time</option>
+<option value="1">Interval</option>
+<option value="2">One-time (specific date)</option>
+</select>
+</div>
+
+
+
+<div id="intervalFields" style="display:none">
+<div class="form-row">
+<label>Repeat Every:</label>
+<div style="display:flex;gap:6px">
+<input type="number" id="evIntH" min="0" max="23" value="0" style="width:45%" placeholder="Hours">
+<span style="line-height:36px">h</span>
+<input type="number" id="evIntM" min="0" max="59" value="30" style="width:45%" placeholder="Min">
+<span style="line-height:36px">m</span>
+</div>
+</div>
+<div class="form-row">
+<label>End Time:</label>
+<div style="display:flex;gap:6px;align-items:center">
+<input type="time" id="evEndTime" value="">
+<label style="font-size:12px;white-space:nowrap"><input type="checkbox" id="evNoEnd" checked onchange="toggleEndTime()"> No end</label>
+</div>
+</div>
+<div style="font-size:11px;color:#666;margin:4px 0 8px 0;padding:6px;background:#fff3e0;border-radius:6px">
+🔄 <b>Interval mode:</b> The bell will ring at the start time and repeat at the set interval. Example: Start 08:00, Every 2h → rings at 08:00, 10:00, 12:00...
+</div>
+</div>
+
+<div id="onetimeFields" style="display:none">
+<div class="form-row">
+<label>Date:</label>
+<input type="date" id="evOneTimeDate" style="width:100%">
+</div>
+<div style="font-size:11px;color:#00bcd4;margin:4px 0 8px 0;padding:6px;background:#0a2a2a;border-radius:6px">
+&#x1F4C5; <b>One-time mode:</b> Bell rings once on this exact date, then auto-disables. Holidays still apply.
+</div>
+</div>
+
+
+
+<div class="form-row">
+<label>Duration:</label>
+<select id="evDur" style="width:100%">
+<option value="0">&#x266B; Full Track (play entire file)</option>
+<option value="5">5 seconds</option>
+<option value="10">10 seconds</option>
+<option value="15">15 seconds</option>
+<option value="20">20 seconds</option>
+<option value="30">30 seconds</option>
+<option value="45">45 seconds</option>
+<option value="60">1 minute</option>
+<option value="120">2 minutes</option>
+<option value="180">3 minutes</option>
+<option value="300">5 minutes</option>
+</select>
+</div>
+
+<div class="form-row">
+<label>Track:</label>
+<div class="track-selector" id="trackSelector">
+<input type="text" class="track-search" id="trackSearch" placeholder="&#x1F50D; Search or tap to select track..." readonly>
+<div class="track-dropdown" id="trackDropdown"></div>
+</div>
+<input type="hidden" id="evT" value="">
+</div>
+<button class="btn btn-primary" onclick="addEvent()">&#x2795; Add Event</button>
+</div>
+
+<div class="card">
+<h3>Events (<span id="evCount">0</span>)</h3>
+<div id="evList"><div class="empty-msg">Loading...</div></div>
+<button class="btn btn-danger btn-small mt8" onclick="clearAll()">&#x1F5D1; Clear All</button>
+</div>
+<div class="card">
+<h3>&#x1F4CB; Schedule Templates <span class="help-icon" onclick="toggleHelp('helpTpl')">?</span></h3>
+<div class="help-text" id="helpTpl"><b>Templates</b> let you save entire schedules and load them later. Perfect for: <b>Regular days</b>, <b>Exam days</b>, <b>Half days</b>, <b>Special events</b>. Save your current events as a template, then switch between them with one tap.</div><div style="font-size:12px;color:#aaa;margin-bottom:12px">
+Save your current schedule as a template. Load it anytime with one tap.
+</div>
+<div class="form-row">
+<label>Name:</label>
+<input type="text" id="tplName" maxlength="20" placeholder="e.g. Regular Day, Exam Day...">
+</div>
+<button class="btn btn-primary mb8" onclick="saveTemplate()">&#x1F4BE; Save Current Schedule</button>
+<div id="tplList"><div class="empty-msg">Loading...</div></div>
+<span id="tplCount" style="font-size:12px;color:#666;margin-top:4px;display:block"></span>
+</div>
+<div class="card">
+<h3>&#x1F3C9; Holiday Calendar <span class="help-icon" onclick="toggleHelp('helpHol')">?</span></h3>
+<div class="help-text" id="helpHol">Mark dates when <b>all bells should be silent</b> — public holidays, exam days, festivals. The device automatically skips all events on holiday dates. Past holidays appear faded.</div><div style="font-size:12px;color:#aaa;margin-bottom:12px">
+Mark dates when all bells should be skipped (holidays, exams, festivals).
+</div>
+<div class="form-row">
+<label>Date:</label>
+<input type="date" id="holDate">
+</div>
+<div class="form-row">
+<label>Name:</label>
+<input type="text" id="holName" maxlength="20" placeholder="e.g. Christmas, Exam Day...">
+</div>
+<button class="btn btn-primary mb8" onclick="addHoliday()">&#x1F3C9; Add Holiday</button>
+<div id="holList"><div class="empty-msg">Loading...</div></div>
+<div style="display:flex;gap:8px;margin-top:8px">
+<button class="btn btn-danger btn-small" onclick="clearHolidays()">&#x1F5D1; Clear All</button>
+<span id="holCount" style="font-size:12px;color:#666;line-height:32px"></span>
+</div>
+</div>
+</div>
+
+<!-- ===== SETTINGS ===== -->
+<div id="tab-settings" class="tab-content">
+<div class="card">
+<h3>&#x1F30D; Environment Profile <span class="help-icon" onclick="toggleHelp('helpProfile')">?</span></h3>
+<div class="help-text" id="helpProfile">Choose the <b>type of institution</b> this device is installed in. This adapts labels, example names, and wizard suggestions throughout the app. All scheduling and audio features remain identical regardless of profile.</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="profileGrid"></div>
+<div style="font-size:11px;color:#666">Changes labels and suggestions. Does not affect scheduling or audio.</div>
+</div>
+<div class="card">
+<h3><span id="nameLabel">School Name</span> <span class="help-icon" onclick="toggleHelp('helpName')">?</span></h3>
+<div class="help-text" id="helpName">The name shown on the <b>TFT display</b> home screen. Max 20 characters. Automatically converted to uppercase.</div><div class="form-row">
+<label>Name:</label>
+<input type="text" id="schoolNameInput" maxlength="20" placeholder="Enter name"
+ style="text-transform:uppercase">
+</div>
+<div style="font-size:11px;color:#666;margin-bottom:10px">Max 20 characters. Shown on TFT display.</div>
+<button class="btn btn-primary" onclick="saveSchoolName()">&#x1F4BE; Save Name</button>
+</div>
+
+<div class="card">
+<h3>&#x1F3A8; Background Theme <span class="help-icon" onclick="toggleHelp('helpTheme')">?</span></h3>
+<div class="help-text" id="helpTheme">Choose a <b>background image</b> for the TFT display. Each theme is a pre-loaded 320×240 image. Select <b>Custom</b> to upload your own image.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+<div class="theme-option" id="theme0" onclick="setTheme(0)">
+<div style="font-size:28px;margin-bottom:4px">&#x1F3EB;</div>
+<div style="font-size:12px;font-weight:bold">School</div>
+<div style="font-size:10px;color:#888">Classic campus</div>
+</div>
+<div class="theme-option" id="theme1" onclick="setTheme(1)">
+<div style="font-size:28px;margin-bottom:4px">&#x1F3E5;</div>
+<div style="font-size:12px;font-weight:bold">Hospital</div>
+<div style="font-size:10px;color:#888">Medical center</div>
+</div>
+<div class="theme-option" id="theme2" onclick="setTheme(2)">
+<div style="font-size:28px;margin-bottom:4px">&#x1F3E8;</div>
+<div style="font-size:12px;font-weight:bold">Hostel</div>
+<div style="font-size:10px;color:#888">Residential hall</div>
+</div>
+<div class="theme-option" id="theme3" onclick="setTheme(3)">
+<div style="font-size:28px;margin-bottom:4px">&#x1F3E2;</div>
+<div style="font-size:12px;font-weight:bold">Office</div>
+<div style="font-size:10px;color:#888">Corporate building</div>
+</div>
+<div class="theme-option" id="theme4" onclick="setTheme(4)">
+<div style="font-size:28px;margin-bottom:4px">&#x1F3DB;</div>
+<div style="font-size:12px;font-weight:bold">Venue</div>
+<div style="font-size:10px;color:#888">Function hall</div>
+</div>
+<div class="theme-option" id="theme5" onclick="setTheme(5)">
+<div style="font-size:28px;margin-bottom:4px">&#x1F6D5;</div>
+<div style="font-size:12px;font-weight:bold">Temple</div>
+<div style="font-size:10px;color:#888">Place of worship</div>
+</div>
+<div class="theme-option" id="theme6" onclick="setTheme(6)">
+<div style="font-size:28px;margin-bottom:4px">&#x1F3E0;</div>
+<div style="font-size:12px;font-weight:bold">Smart Home</div>
+<div style="font-size:10px;color:#888">Home automation</div>
+</div>
+<div class="theme-option" id="theme7" onclick="setTheme(7)">
+<div style="font-size:28px;margin-bottom:4px">&#x1F5BC;</div>
+<div style="font-size:12px;font-weight:bold">Custom</div>
+<div style="font-size:10px;color:#888">Your own image</div>
+</div>
+</div>
+<div style="font-size:11px;color:#666">Select a theme for the TFT home screen background.</div>
+</div>
+
+<div class="card">
+<h3>&#x1F3A8; Display Colors <span class="help-icon" onclick="toggleHelp('helpColors')">?</span></h3>
+<div class="help-text" id="helpColors">Customize the <b>school name color</b> and <b>clock color</b> on the TFT home screen. Tap the color box to open a color picker. Works with all background themes.</div><div class="form-row">
+<label>Name:</label>
+<input type="color" id="nameColorPicker" value="#FFFF00" style="width:60px;height:40px;padding:2px;background:#0f0f1e;border:1px solid #2a2a5e;border-radius:8px;cursor:pointer">
+<span id="nameColorHex" style="font-size:12px;color:#888;margin-left:8px">#FFFF00</span>
+</div>
+<div class="form-row">
+<label>Clock:</label>
+<input type="color" id="clockColorPicker" value="#FFFF00" style="width:60px;height:40px;padding:2px;background:#0f0f1e;border:1px solid #2a2a5e;border-radius:8px;cursor:pointer">
+<span id="clockColorHex" style="font-size:12px;color:#888;margin-left:8px">#FFFF00</span>
+</div>
+<div style="font-size:11px;color:#666;margin-bottom:10px">Tap the color box to pick a color for school name and clock on the home screen.</div>
+<button class="btn btn-primary" onclick="saveColors()">&#x1F3A8; Apply Colors</button>
+</div>
+
+<div class="card" id="customBgCard">
+<h3>&#x1F5BC; Custom Background</h3>
+<div style="font-size:12px;color:#aaa;margin-bottom:12px">
+Upload any image. It will be automatically resized to 320&times;240 and converted for the TFT display.
+</div>
+<div style="margin-bottom:12px">
+<input type="file" id="bgFileInput" accept="image/*"
+ style="display:none" onchange="previewCustomBg(this)">
+<button class="btn btn-outline mb8" onclick="document.getElementById('bgFileInput').click()">
+&#x1F4C1; Choose Image
+</button>
+</div>
+<canvas id="bgPreview" width="320" height="240"
+ style="display:none;width:100%;max-width:320px;border:2px solid #2a2a5e;border-radius:8px;margin-bottom:12px"></canvas>
+<div id="bgFileName" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+<div id="bgUploadProgress" style="display:none;margin-bottom:12px">
+<div style="background:#1a1a3e;border-radius:8px;height:8px;overflow:hidden">
+<div id="bgProgressBar" style="background:#ffd700;height:100%;width:0%;transition:width 0.3s"></div>
+</div>
+<div id="bgProgressText" style="font-size:11px;color:#888;margin-top:4px;text-align:center">Uploading...</div>
+</div>
+<button class="btn btn-primary" id="bgUploadBtn" onclick="uploadCustomBg()" style="display:none">
+&#x1F4E4; Upload &amp; Apply
+</button>
+</div>
+<div class="card">
+<h3>&#x1F512; Password Protection <span class="help-icon" onclick="toggleHelp('helpPin')">?</span></h3>
+<div class="help-text" id="helpPin">The PIN protects the web UI. Default: <code>1234</code>. Must be 4-8 characters. <b>Forgot PIN?</b> Press <b>NEXT → OK → MENU</b> on the device buttons to reset to 1234.</div><div class="form-row">
+<label>Current:</label>
+<input type="password" id="curPin" maxlength="8" placeholder="Current PIN">
+</div>
+<div class="form-row">
+<label>New:</label>
+<input type="password" id="newPin" maxlength="8" placeholder="New PIN (4-8 chars)">
+</div>
+<div class="form-row">
+<label>Confirm:</label>
+<input type="password" id="confPin" maxlength="8" placeholder="Confirm new PIN">
+</div>
+<div style="font-size:11px;color:#666;margin-bottom:10px">Default PIN: 1234. PIN must be 4-8 characters.</div>
+<button class="btn btn-primary" onclick="changePassword()">&#x1F512; Change PIN</button>
+</div>
+
+<!-- ═══════════ BACKUP & RESTORE ═══════════ -->
+<div class="card">
+<h3>&#x1F4BE; Backup &amp; Restore <span class="help-icon" onclick="toggleHelp('helpBackup')">?</span></h3>
+<div class="help-text" id="helpBackup">Download all settings as a <b>JSON file</b> for safekeeping. Restore from backup to recover after a factory reset or transfer settings to another device. Includes events, holidays, school name, theme, colors, and sound names.</div><div style="font-size:12px;color:#aaa;margin-bottom:12px">
+Download all settings as a file, or restore from a previous backup.
+Includes events, school name, theme, colors, holidays, password, and sound names.
+</div>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+<button class="btn btn-green btn-small" onclick="downloadBackup()" style="width:auto">&#x2B07; Download Backup</button>
+<span id="backupStatus" style="color:#aaa;font-size:12px"></span>
+</div>
+<div style="border-top:1px solid #2a2a5e;padding-top:12px">
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+<label style="background:#0f0f1e;border:1px solid #2a2a5e;color:#aaa;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px">
+&#x1F4C1; Choose Backup File
+<input type="file" id="restoreFile" accept=".json" onchange="restoreFileSelected()" style="display:none">
+</label>
+<span id="restoreFileName" style="color:#666;font-size:12px">No file selected</span>
+</div>
+<div id="restorePreview" style="display:none;background:#0f0f1e;border:1px solid #2a2a5e;border-radius:8px;padding:12px;margin-bottom:10px">
+<div style="color:#ccc;font-size:12px;line-height:1.6" id="restoreInfo"></div>
+<div style="display:flex;gap:8px;margin-top:10px">
+<button class="btn btn-danger btn-small" onclick="executeRestore()">&#x26A0; Restore Now</button>
+<button class="btn btn-outline btn-small" onclick="cancelRestore()">Cancel</button>
+</div>
+</div>
+<div id="restoreProgress" style="display:none;margin-top:8px">
+<div style="background:#1a1a3e;border-radius:8px;height:8px;overflow:hidden">
+<div id="restoreBar" style="background:#4caf50;height:100%;width:0%;transition:width 0.3s"></div>
+</div>
+<span id="restoreStatus" style="font-size:11px;color:#888;margin-top:4px;display:block"></span>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h3>&#x1F4C5; Export Schedule to Calendar</h3>
+<div style="font-size:12px;color:#aaa;margin-bottom:12px">
+Export your bell schedule to Google Calendar, Apple Calendar,
+or any calendar app. Each bell becomes a recurring event with
+an alarm notification.
+</div>
+<div class="form-row">
+<label>Notify:</label>
+<select id="icsAdvance" style="width:100%">
+<option value="0">No advance notice</option>
+<option value="1">1 minute before</option>
+<option value="2">2 minutes before</option>
+<option value="5" selected>5 minutes before</option>
+<option value="10">10 minutes before</option>
+<option value="15">15 minutes before</option>
+<option value="30">30 minutes before</option>
+</select>
+</div>
+<button class="btn btn-primary mb8" onclick="exportCalendar()">
+&#x1F4C5; Download Calendar File
+</button>
+<div style="font-size:11px;color:#666;margin-top:6px;line-height:1.6">
+After downloading, open the .ics file and tap <b>Add to Calendar</b>.<br>
+Re-download whenever your schedule changes.<br>
+Holidays are automatically embedded as exceptions.
+</div>
+</div>
+
+<div class="card">
+<h3>Set Date &amp; Time</h3>
+<div class="form-row"><label>Year:</label><input type="number" id="sY" min="2020" max="2099"></div>
+<div class="form-row"><label>Month:</label><input type="number" id="sMo" min="1" max="12"></div>
+<div class="form-row"><label>Day:</label><input type="number" id="sD" min="1" max="31"></div>
+<div class="form-row"><label>Hour:</label><input type="number" id="sH" min="0" max="23"></div>
+<div class="form-row"><label>Minute:</label><input type="number" id="sMi" min="0" max="59"></div>
+<button class="btn btn-outline mb8" onclick="syncPhone()">&#x1F4F1; Sync Phone Time</button>
+<button class="btn btn-green mb8" onclick="loadTime()">&#x1F504; Load Device Time</button>
+<button class="btn btn-primary" onclick="saveTime()">&#x1F4BE; Save to Device</button>
+</div>
+
+<!-- ═══════════ WIFI SETTINGS ═══════════ -->
+<div class="card">
+<h3>&#x1F4F6; WiFi Settings <span class="help-icon" onclick="toggleHelp('helpWifi')">?</span></h3>
+<div class="help-text" id="helpWifi"><b>Station mode</b>: Connect to your router for internet access and automatic NTP time sync. <b>AP mode</b>: Device creates its own "SmartBell" WiFi. AP mode is <b>always active</b> as fallback at <code>192.168.4.1</code>. WiFi is optional — the device works fully offline.</div><div id="wifiStatus" style="margin-bottom:12px">
+<div class="info-row"><span class="info-label">Mode</span><span class="info-value" id="wifiMode">--</span></div>
+<div class="info-row"><span class="info-label">Network</span><span class="info-value" id="wifiSSID">--</span></div>
+<div class="info-row"><span class="info-label">IP Address</span><span class="info-value" id="wifiIP">--</span></div>
+<div class="info-row"><span class="info-label">Signal</span><span class="info-value" id="wifiSignal">--</span></div>
+<div class="info-row"><span class="info-label">NTP Sync</span><span class="info-value" id="wifiNTP">--</span></div>
+</div>
+<button class="btn btn-outline mb8" onclick="scanWiFi()" id="scanBtn">&#x1F504; Scan Networks</button>
+<div id="wifiNetworks" style="display:none;margin-bottom:12px;max-height:200px;overflow-y:auto"></div>
+<div id="wifiConnForm" style="display:none">
+<div class="form-row">
+<label>SSID:</label>
+<input type="text" id="wifiSSIDInput" maxlength="32" readonly style="background:#1a1a3e">
+</div>
+<div class="form-row">
+<label>Pass:</label>
+<input type="password" id="wifiPassInput" maxlength="64" placeholder="WiFi password">
+</div>
+<button class="btn btn-primary mb8" onclick="connectWiFi()">&#x1F4F6; Connect</button>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+<button class="btn btn-outline btn-small" onclick="forceAPMode()">&#x1F4E1; AP Mode Only</button>
+<button class="btn btn-outline btn-small" onclick="forceNTPSync()">&#x23F0; Sync NTP Now</button>
+</div>
+<div style="font-size:11px;color:#666;margin-top:10px">
+Station mode: connect to your router for internet + NTP time sync.<br>
+AP mode always remains active as fallback at <b>192.168.4.1</b>.
+</div>
+<div class="card">
+<h3>&#x1F9ED; Setup Wizard</h3>
+<div style="font-size:12px;color:#aaa;margin-bottom:12px">
+Re-run the initial setup wizard to reconfigure basic settings.
+</div>
+<button class="btn btn-outline" onclick="rerunWizard()">&#x1F504; Re-run Setup Wizard</button>
+</div>
+</div>
+
+</div>
+
+<!-- ===== CONTROLS ===== -->
+<div id="tab-controls" class="tab-content">
+
+<div class="card">
+<h3>&#x1F514; Manual Bell <span class="help-icon" onclick="toggleHelp('helpBell')">?</span></h3>
+<div class="help-text" id="helpBell">Ring the bell <b>manually</b> anytime with any ringtone. This pauses all scheduled events while ringing. Tap again or press Stop to end. You can also press the <b>PLAY button</b> on the device.</div><div class="ringtone-select">
+<div class="ringtone-label">Select Ringtone</div>
+<select id="ringtoneSelect">
+<option value="101">Ringtone 1</option>
+<option value="102">Ringtone 2</option>
+<option value="103">Ringtone 3</option>
+<option value="104">Ringtone 4</option>
+<option value="105">Ringtone 5</option>
+<option value="106">Ringtone 6</option>
+<option value="107">Ringtone 7</option>
+<option value="108">Ringtone 8</option>
+<option value="109">Ringtone 9</option>
+<option value="110">Ringtone 10</option>
+</select>
+</div>
+<div class="action-btn bell-btn" id="bellBtn" onclick="triggerBell()">
+<div class="action-icon">&#x1F514;</div>
+<div class="action-label" id="bellLbl">Ring Bell</div>
+<div class="action-sub" id="bellSub">Tap to ring selected ringtone</div>
+</div>
+</div>
+
+<div class="card">
+<h3>&#x1F3A4; Live Announcement <span class="help-icon" onclick="toggleHelp('helpLive')">?</span></h3>
+<div class="help-text" id="helpLive">Activates the <b>MEMS microphone</b> for live PA announcements. Audio is streamed through the speaker in real-time. All scheduled bells are paused during live mode. Works from web or device buttons.</div><div class="action-btn live-btn" id="liveBtn" onclick="toggleLive()">
+<div class="action-icon">&#x1F3A4;</div>
+<div class="action-label" id="liveLbl">Start Announcement</div>
+<div class="action-sub">Overrides all scheduled bells</div>
+</div>
+</div>
+
+
+
+<!-- REPLACE WITH: -->
+<button class="btn btn-danger mt8" onclick="triggerStop()">&#x23F9; Stop Everything</button>
+
+<div class="card" style="margin-top:12px">
+<h3>&#x1F504; Audio Recovery <span class="help-icon" onclick="toggleHelp('helpAudioReset')">?</span></h3>
+<div class="help-text" id="helpAudioReset">
+Use this if audio stops after <b>removing and reinserting the SD card</b>.
+Resets the DFPlayer Mini and re-scans the SD card. Takes 2-3 seconds.
+The device also detects SD card reinsertion <b>automatically</b> — this button is a manual fallback.
+</div>
+<div style="font-size:12px;color:#aaa;margin-bottom:12px">
+Tap if audio is silent after SD card was removed and reinserted.
+</div>
+<button class="btn btn-outline" id="audioResetBtn" onclick="resetAudio()">
+&#x1F504; Reset Audio / SD Card
+</button>
+</div>
+
+</div>  <!-- closes tab-controls -->
+
+<!-- ===== LOGS TAB ===== -->
+<div id="tab-logs" class="tab-content">
+<div class="card">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+<h3 style="margin:0">&#x1F4CB; System Log</h3>
+<div>
+<button class="btn btn-small" onclick="loadLogs()" style="background:#2196F3;color:#fff;margin-right:6px">&#x1F504; Refresh</button>
+<button class="btn btn-small btn-danger" onclick="clearLogs()">&#x1F5D1; Clear</button>
+</div>
+</div>
+
+<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px">
+<button class="log-filter active" onclick="filterLogs('ALL',this)" style="color:#fff">All</button>
+<button class="log-filter" onclick="filterLogs('BELL',this)" style="color:#4CAF50">&#x1F514; Bell</button>
+<button class="log-filter" onclick="filterLogs('SCHED',this)" style="color:#2196F3">&#x1F4C5; Schedule</button>
+<button class="log-filter" onclick="filterLogs('AUDIO',this)" style="color:#FF9800">&#x1F50A; Audio</button>
+<button class="log-filter" onclick="filterLogs('SET',this)" style="color:#9C27B0">&#x2699; Settings</button>
+<button class="log-filter" onclick="filterLogs('SYS',this)" style="color:#607D8B">&#x1F4BB; System</button>
+<button class="log-filter" onclick="filterLogs('ERROR',this)" style="color:#f44336">&#x274C; Errors</button>
+</div>
+
+<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+<label style="color:#aaa;font-size:13px">
+<input type="checkbox" id="logAutoRefresh" onchange="toggleLogAutoRefresh(this.checked)" style="margin-right:4px">
+Auto-refresh every 5s
+</label>
+<span id="logCount" style="color:#888;font-size:13px;margin-left:auto"></span>
+</div>
+
+<div id="logList" style="background:#111;border-radius:8px;padding:4px;max-height:60vh;overflow-y:auto;font-family:'Courier New',monospace;font-size:13px">
+<div class="empty-msg">Loading logs...</div>
+</div>
+</div>
+</div>
+
+
+<!-- ===== HELP TAB ===== -->
+<div id="tab-help" class="tab-content">
+
+<div class="card" style="text-align:center;padding:20px">
+<div style="font-size:36px;margin-bottom:8px">&#x1F514;</div>
+<div style="font-size:18px;font-weight:bold;color:#ffd700;margin-bottom:4px">Smart Bell User Guide</div>
+<div style="font-size:13px;color:#888">Everything you need to know about your Smart Bell system</div>
+</div>
+
+<input type="text" class="help-search" id="helpSearchInput" placeholder="&#x1F50D; Search help topics..." oninput="searchHelp(this.value)">
+
+<!-- ── Getting Started ── -->
+<div class="help-section open" id="hs-start" data-keywords="start begin first setup overview introduction how basics">
+<div class="help-section-header" onclick="toggleHelpSection('hs-start')">
+<div class="help-section-icon">&#x1F680;</div>
+<div class="help-section-title">Getting Started</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p">Smart Bell is an <b>automatic school bell system</b> that rings bells at scheduled times. It replaces manual bell ringing with a reliable, programmable device.</p>
+<p class="help-p"><b>How it works:</b></p>
+<ul class="help-list">
+<li><b>Schedule events</b> — set bell times for each day of the week</li>
+<li><b>Choose tracks</b> — assign different music/ringtones to each event</li>
+<li><b>Set holidays</b> — mark dates when bells should be silent</li>
+<li><b>Save templates</b> — switch between schedules (regular, exam, half day)</li>
+<li><b>Manual control</b> — ring bells or make live announcements anytime</li>
+</ul>
+<p class="help-p"><b>Two ways to control:</b></p>
+<ul class="help-list">
+<li><b>This web app</b> — full control from any phone/computer on the same WiFi</li>
+<li><b>Physical buttons</b> — navigate menus, ring bells, and reset directly on the device</li>
+</ul>
+<p class="help-p">&#x1F4A1; <b>Tip:</b> The device works 100% offline. WiFi is only needed for automatic time sync (NTP).</p>
+</div>
+</div>
+
+<!-- ── Schedule & Events ── -->
+<div class="help-section" id="hs-events" data-keywords="schedule event bell time add delete edit toggle enable disable days weekday track music folder period class recess prayer assembly">
+<div class="help-section-header" onclick="toggleHelpSection('hs-events')">
+<div class="help-section-icon">&#x1F4C5;</div>
+<div class="help-section-title">Schedule &amp; Events</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p">An <b>event</b> is a scheduled bell ring. Each event has:</p>
+<table class="help-table">
+<tr><th>Field</th><th>Description</th></tr>
+<tr><td><b>Name</b></td><td>Label shown on display (e.g. "Recess", "Period 3")</td></tr>
+<tr><td><b>Time</b></td><td>Hour and minute when the bell rings</td></tr>
+<tr><td><b>Days</b></td><td>Which days of the week (Mon-Fri, Sat, Sun)</td></tr>
+<tr><td><b>Track</b></td><td>Music file to play from SD card</td></tr>
+</table>
+<p class="help-p"><b>Adding an event:</b></p>
+<ul class="help-list">
+<li>Go to <span class="help-link" onclick="switchTab('schedule',document.querySelectorAll('.tab')[1])">Schedule tab</span></li>
+<li>Enter name, time, select days, and choose a track</li>
+<li>Tap <b>Add Event</b></li>
+</ul>
+<p class="help-p"><b>Managing events:</b></p>
+<ul class="help-list">
+<li><b>Toggle switch</b> — enable/disable without deleting</li>
+<li><b>&#x2715; button</b> — permanently delete an event</li>
+<li><b>Clear All</b> — remove all events at once</li>
+</ul>
+<p class="help-p">&#x1F4A1; Maximum <b>100 events</b> can be scheduled. Disabled events remain saved but won't ring.</p>
+<p class="help-p"><b>Track selection:</b> Tap the track field to open a searchable dropdown. Tracks come from the SD card. Sync track names from the desktop app for easy identification.</p>
+</div>
+</div>
+
+<!-- ── Templates ── -->
+<div class="help-section" id="hs-templates" data-keywords="template save load schedule exam half day regular special switch preset">
+<div class="help-section-header" onclick="toggleHelpSection('hs-templates')">
+<div class="help-section-icon">&#x1F4CB;</div>
+<div class="help-section-title">Schedule Templates</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p">Templates let you <b>save and switch between entire schedules</b> with one tap.</p>
+<p class="help-p"><b>Example templates:</b></p>
+<ul class="help-list">
+<li><b>Regular Day</b> — 15 events, full school day (Mon-Fri)</li>
+<li><b>Saturday</b> — 8 events, half day schedule</li>
+<li><b>Exam Day</b> — 4 events, exam timings only</li>
+<li><b>Sports Day</b> — custom event schedule</li>
+</ul>
+<p class="help-p"><b>How to use:</b></p>
+<ul class="help-list">
+<li>Set up your schedule normally (add all events)</li>
+<li>Go to <b>Schedule Templates</b> section</li>
+<li>Enter a name and tap <b>Save Current Schedule</b></li>
+<li>Later, tap <b>Load</b> to restore that schedule</li>
+</ul>
+<p class="help-p">&#x26A0;&#xFE0F; Loading a template <b>replaces</b> all current events. Save your current schedule as a template first if you want to keep it.</p>
+<p class="help-p">Maximum <b>10 templates</b> can be stored.</p>
+</div>
+</div>
+
+<!-- ── Holidays ── -->
+<div class="help-section" id="hs-holidays" data-keywords="holiday skip silent mute festival exam vacation off day date calendar">
+<div class="help-section-header" onclick="toggleHelpSection('hs-holidays')">
+<div class="help-section-icon">&#x1F3C9;</div>
+<div class="help-section-title">Holiday Calendar</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p">Mark dates when <b>all bells should be completely silent</b>.</p>
+<p class="help-p"><b>Use for:</b></p>
+<ul class="help-list">
+<li>Public holidays (Christmas, Diwali, Independence Day)</li>
+<li>School vacations</li>
+<li>Exam days (if no bells needed)</li>
+<li>Staff meetings / special occasions</li>
+</ul>
+<p class="help-p"><b>How it works:</b></p>
+<ul class="help-list">
+<li>Add a date and optional name</li>
+<li>On that date, <b>all scheduled events are automatically skipped</b></li>
+<li>The home screen and TFT display show "Holiday" status</li>
+<li>Manual bell and live announcements still work on holidays</li>
+</ul>
+<p class="help-p">Past holidays appear <b>faded</b>. Today's holiday shows a <b>TODAY</b> badge. Maximum <b>50 holidays</b>.</p>
+</div>
+</div>
+
+<!-- ── Controls ── -->
+<div class="help-section" id="hs-controls" data-keywords="manual bell ring live announcement microphone mic pa speaker stop play control">
+<div class="help-section-header" onclick="toggleHelpSection('hs-controls')">
+<div class="help-section-icon">&#x1F3AE;</div>
+<div class="help-section-title">Manual Bell &amp; Live Announcements</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p"><b>Manual Bell:</b></p>
+<ul class="help-list">
+<li>Ring any ringtone instantly from <span class="help-link" onclick="switchTab('controls',document.querySelectorAll('.tab')[3])">Controls tab</span> or the PLAY button on device</li>
+<li>Choose from <b>10 ringtones</b> stored on the SD card</li>
+<li>All scheduled events are <b>paused</b> while ringing</li>
+<li>Tap again or press Stop to end</li>
+</ul>
+<p class="help-p"><b>Live Announcement:</b></p>
+<ul class="help-list">
+<li>Activates the <b>MEMS microphone</b> for real-time PA</li>
+<li>Your voice is streamed through the speaker instantly</li>
+<li>All scheduled events are paused during live mode</li>
+<li>Start/stop from web UI or device buttons</li>
+</ul>
+<p class="help-p"><b>Audio Path:</b></p>
+<table class="help-table">
+<tr><th>Mode</th><th>Signal Path</th></tr>
+<tr><td>Scheduled/Manual</td><td>SD Card → DFPlayer → Amplifier → Speaker</td></tr>
+<tr><td>Live Announcement</td><td>Microphone → ESP32 → DAC → Amplifier → Speaker</td></tr>
+</table>
+<p class="help-p">A relay physically switches between audio sources. The amplifier has a 100ms warmup delay for clean audio.</p>
+</div>
+</div>
+
+<!-- ── WiFi & NTP ── -->
+<div class="help-section" id="hs-wifi" data-keywords="wifi wireless network connect station ap access point ntp time sync internet router hotspot ip address static dhcp reconnect">
+<div class="help-section-header" onclick="toggleHelpSection('hs-wifi')">
+<div class="help-section-icon">&#x1F4F6;</div>
+<div class="help-section-title">WiFi &amp; Time Sync</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p"><b>Two WiFi modes:</b></p>
+<table class="help-table">
+<tr><th>Mode</th><th>Description</th></tr>
+<tr><td><b>AP Mode</b> (default)</td><td>Device creates "SmartBell" WiFi. Connect your phone directly. Always available at <code>192.168.4.1</code></td></tr>
+<tr><td><b>Station Mode</b></td><td>Device connects to your router. Enables internet access for NTP time sync. AP stays active as fallback.</td></tr>
+</table>
+<p class="help-p"><b>Connecting to WiFi:</b></p>
+<ul class="help-list">
+<li>Go to <span class="help-link" onclick="switchTab('settings',document.querySelectorAll('.tab')[2])">Settings</span> → WiFi Settings</li>
+<li>Tap <b>Scan Networks</b> (may need to tap twice)</li>
+<li>Select your network and enter the password</li>
+<li>The device connects and starts NTP time sync</li>
+</ul>
+<p class="help-p"><b>NTP Time Sync:</b></p>
+<ul class="help-list">
+<li>Automatic sync every <b>6 hours</b> when WiFi is connected</li>
+<li>Uses <code>pool.ntp.org</code> as primary server</li>
+<li>Can be triggered manually from WiFi settings</li>
+<li>Timezone: IST (UTC+5:30) — configured in firmware</li>
+</ul>
+<p class="help-p"><b>Auto-Reconnect:</b> If WiFi drops, the device automatically attempts to reconnect with exponential backoff (30s → 60s → 120s → max 5min). AP mode always remains accessible.</p>
+<p class="help-p">&#x1F4A1; <b>Tip:</b> WiFi is completely optional. The device keeps time with its battery-backed RTC and works 100% offline.</p>
+</div>
+</div>
+
+<!-- ── Display & Themes ── -->
+<div class="help-section" id="hs-display" data-keywords="display tft screen theme background color school name custom image clock">
+<div class="help-section-header" onclick="toggleHelpSection('hs-display')">
+<div class="help-section-icon">&#x1F3A8;</div>
+<div class="help-section-title">Display &amp; Themes</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p">The device has a <b>2.4" TFT color display</b> showing:</p>
+<ul class="help-list">
+<li><b>School name</b> at the top</li>
+<li><b>Clock</b> with blinking colon</li>
+<li><b>Date</b> and day of week</li>
+<li><b>Next event</b> card (name + time)</li>
+<li><b>WiFi icon</b> (green=connected, grey=offline)</li>
+</ul>
+<p class="help-p"><b>8 Background Themes:</b></p>
+<table class="help-table">
+<tr><th>#</th><th>Theme</th><th>Best For</th></tr>
+<tr><td>0</td><td>&#x1F3EB; School</td><td>Schools, colleges</td></tr>
+<tr><td>1</td><td>&#x1F3E5; Hospital</td><td>Medical centers</td></tr>
+<tr><td>2</td><td>&#x1F3E8; Hostel</td><td>Dormitories, hostels</td></tr>
+<tr><td>3</td><td>&#x1F3E2; Office</td><td>Corporate offices</td></tr>
+<tr><td>4</td><td>&#x1F3DB; Venue</td><td>Function halls</td></tr>
+<tr><td>5</td><td>&#x1F6D5; Temple</td><td>Places of worship</td></tr>
+<tr><td>6</td><td>&#x1F3E0; Smart Home</td><td>Home automation</td></tr>
+<tr><td>7</td><td>&#x1F5BC; Custom</td><td>Upload your own image</td></tr>
+</table>
+<p class="help-p"><b>Custom Background:</b> Upload any image. It's automatically cropped to 320×240 and converted to RGB565 format for the TFT.</p>
+<p class="help-p"><b>Colors:</b> Customize the school name and clock text color independently. Works on all themes.</p>
+</div>
+</div>
+
+<!-- ── Backup & Restore ── -->
+<div class="help-section" id="hs-backup" data-keywords="backup restore download upload save file json transfer export import data">
+<div class="help-section-header" onclick="toggleHelpSection('hs-backup')">
+<div class="help-section-icon">&#x1F4BE;</div>
+<div class="help-section-title">Backup &amp; Restore</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p"><b>Backup</b> downloads all your settings as a single JSON file:</p>
+<ul class="help-list">
+<li>All scheduled events</li>
+<li>School name, theme, colors</li>
+<li>Holiday calendar</li>
+<li>Sound name mappings</li>
+<li>PIN code</li>
+</ul>
+<p class="help-p"><b>Restore</b> uploads a backup file and replaces all current settings. Useful for:</p>
+<ul class="help-list">
+<li>Recovering after factory reset</li>
+<li>Transferring settings to a new device</li>
+<li>Keeping a safe copy before making changes</li>
+</ul>
+<p class="help-p">&#x26A0;&#xFE0F; Restore <b>replaces everything</b>. Download a backup first if you want to save current settings.</p>
+<p class="help-p">&#x1F4A1; <b>Tip:</b> Sound names are preserved during factory reset since they're tied to the SD card contents.</p>
+</div>
+</div>
+
+<!-- ── Security ── -->
+<div class="help-section" id="hs-security" data-keywords="pin password security reset lock unlock factory button combo serial default 1234">
+<div class="help-section-header" onclick="toggleHelpSection('hs-security')">
+<div class="help-section-icon">&#x1F512;</div>
+<div class="help-section-title">Security &amp; Reset</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p"><b>PIN Protection:</b></p>
+<ul class="help-list">
+<li>Default PIN: <code>1234</code></li>
+<li>Must be 4-8 characters</li>
+<li>Required to access the web UI</li>
+<li>Change in Settings → Password Protection</li>
+</ul>
+<p class="help-p"><b>PIN Reset</b> (if you forget it):</p>
+<table class="help-table">
+<tr><th>Method</th><th>How</th></tr>
+<tr><td><b>Button Combo</b></td><td>Press <span class="help-combo">NEXT</span> → <span class="help-combo">OK</span> → <span class="help-combo">MENU</span> (each within 500ms). 10-second countdown. Press <span class="help-combo">PLAY</span> to cancel.</td></tr>
+<tr><td><b>Serial Command</b></td><td>Connect USB, open terminal at 115200 baud, type <code>resetpassword</code></td></tr>
+</table>
+<p class="help-p"><b>Factory Reset</b> (erases everything except sounds and backgrounds):</p>
+<table class="help-table">
+<tr><th>Method</th><th>How</th></tr>
+<tr><td><b>Button Combo</b></td><td>Press <span class="help-combo">PLAY</span> → <span class="help-combo">MENU</span> (within 500ms). 10-second countdown. Press <span class="help-combo">NEXT</span> or <span class="help-combo">OK</span> to cancel.</td></tr>
+<tr><td><b>Serial Command</b></td><td>Type <code>factoryreset YES</code></td></tr>
+<tr><td><b>Web API</b></td><td>POST to /api/factoryreset</td></tr>
+</table>
+<p class="help-p"><b>What factory reset deletes:</b> Events, WiFi credentials, school name, theme, colors, PIN, holidays, templates, setup wizard flag.</p>
+<p class="help-p"><b>What factory reset preserves:</b> Sound name mappings, background images.</p>
+<p class="help-p">&#x1F4A1; Both button combos have a <b>10-second boot guard</b> — they're ignored for the first 10 seconds after power on.</p>
+</div>
+</div>
+
+<!-- ── Physical Buttons ── -->
+<div class="help-section" id="hs-buttons" data-keywords="button physical play next menu ok navigate tft device hardware press combo">
+<div class="help-section-header" onclick="toggleHelpSection('hs-buttons')">
+<div class="help-section-icon">&#x1F579;</div>
+<div class="help-section-title">Physical Buttons Guide</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<p class="help-p">The device has <b>4 physical buttons</b>:</p>
+<table class="help-table">
+<tr><th>Button</th><th>Home Screen</th><th>Menu</th><th>Other Screens</th></tr>
+<tr><td><b>MENU</b></td><td>Open menu</td><td>Go home</td><td>Go back</td></tr>
+<tr><td><b>NEXT</b></td><td>Part of combos</td><td>Next item</td><td>Scroll / next ringtone</td></tr>
+<tr><td><b>OK</b></td><td>Part of combos</td><td>Select item</td><td>Confirm / play</td></tr>
+<tr><td><b>PLAY</b></td><td>Part of combos</td><td>—</td><td>Start/stop bell or live</td></tr>
+</table>
+<p class="help-p"><b>TFT Menu Options:</b></p>
+<ul class="help-list">
+<li><b>Scheduler</b> — view all scheduled events</li>
+<li><b>Date & Time</b> — view current date and time</li>
+<li><b>Announcement</b> — start/stop live PA</li>
+<li><b>Manual Bell</b> — select ringtone and ring</li>
+</ul>
+<p class="help-p"><b>Button Combos (Home Screen only):</b></p>
+<table class="help-table">
+<tr><th>Combo</th><th>Action</th><th>Cancel</th><th>Screen</th></tr>
+<tr><td><span class="help-combo">PLAY</span> → <span class="help-combo">MENU</span></td><td>Factory Reset</td><td>NEXT or OK</td><td>&#x1F534; Red</td></tr>
+<tr><td><span class="help-combo">NEXT</span> → <span class="help-combo">OK</span> → <span class="help-combo">MENU</span></td><td>PIN Reset</td><td>PLAY</td><td>&#x1F7E0; Amber</td></tr>
+</table>
+<p class="help-p">Screen auto-returns to home after 60 seconds of inactivity.</p>
+</div>
+</div>
+
+<!-- ── Troubleshooting / FAQ ── -->
+<div class="help-section" id="hs-faq" data-keywords="faq question problem fix issue troubleshoot error not working help">
+<div class="help-section-header" onclick="toggleHelpSection('hs-faq')">
+<div class="help-section-icon">&#x2753;</div>
+<div class="help-section-title">Troubleshooting &amp; FAQ</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+
+<div class="faq-item" id="faq0" data-keywords="bell not ringing silent no sound">
+<div class="faq-q" onclick="toggleFaq('faq0')"><span class="faq-q-icon">Q</span><span class="faq-q-text">Bell is not ringing at scheduled times</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a">Check these in order:<br>1. Is the event <b>enabled</b>? (toggle switch should be green)<br>2. Is today's <b>weekday</b> selected?<br>3. Is today a <b>holiday</b>?<br>4. Is the <b>scheduler running</b>? (Home tab status)<br>5. Is the <b>time correct</b>?<br>6. Is the <b>SD card</b> inserted with audio files?<br>7. Check <b>System Log</b> for errors.</div>
+</div>
+
+<div class="faq-item" id="faq1" data-keywords="cannot connect wifi phone browser 192.168">
+<div class="faq-q" onclick="toggleFaq('faq1')"><span class="faq-q-icon">Q</span><span class="faq-q-text">Can't connect to Smart Bell from my phone</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a">1. Connect to <b>"SmartBell"</b> WiFi (password: <code>bell1234</code>)<br>2. Open browser → <code>192.168.4.1</code><br>3. Disable mobile data temporarily if phone auto-switches<br>4. On iPhone: tap <b>Use Without Internet</b> if prompted<br>5. In station mode, use the router IP from WiFi status</div>
+</div>
+
+<div class="faq-item" id="faq2" data-keywords="time wrong incorrect clock date ntp rtc battery">
+<div class="faq-q" onclick="toggleFaq('faq2')"><span class="faq-q-icon">Q</span><span class="faq-q-text">Time is wrong or resets after power loss</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a"><b>Quick fixes:</b><br>1. Settings → Date & Time → <b>Sync Phone Time</b> → <b>Save</b><br>2. Or connect WiFi for NTP sync<br><br><b>If time resets after power loss:</b> The RTC backup battery (CR2032) may be dead. Replace it.</div>
+</div>
+
+<div class="faq-item" id="faq3" data-keywords="forgot pin password locked out cannot login">
+<div class="faq-q" onclick="toggleFaq('faq3')"><span class="faq-q-icon">Q</span><span class="faq-q-text">Forgot PIN / Locked out</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a">Press <span class="help-combo">NEXT</span> → <span class="help-combo">OK</span> → <span class="help-combo">MENU</span> on the device (each within 500ms). Wait 10 seconds. PIN resets to <code>1234</code>.<br><br>Or connect USB and type <code>resetpassword</code> in serial terminal.</div>
+</div>
+
+<div class="faq-item" id="faq4" data-keywords="no sound audio speaker amplifier dfplayer sd card">
+<div class="faq-q" onclick="toggleFaq('faq4')"><span class="faq-q-icon">Q</span><span class="faq-q-text">No audio / speaker not working</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a">1. Check DFPlayer status in Home → System Status<br>2. Verify <b>SD card</b> is inserted (FAT32, files named 0001.mp3, 0002.mp3...)<br>3. Check amplifier power (GPIO 5)<br>4. Try serial command <code>dftest</code><br>5. Check relay (GPIO 4)</div>
+</div>
+
+<div class="faq-item" id="faq5" data-keywords="track name missing unknown desktop app music">
+<div class="faq-q" onclick="toggleFaq('faq5')"><span class="faq-q-icon">Q</span><span class="faq-q-text">Track names not showing</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a">Track names must be synced from the <b>desktop app</b>. The DFPlayer only knows files by number. Without the desktop app, tracks show as "Track 1", "Track 2", etc. This doesn't affect bell functionality.</div>
+</div>
+
+<div class="faq-item" id="faq6" data-keywords="wifi disconnecting dropping reconnect unstable">
+<div class="faq-q" onclick="toggleFaq('faq6')"><span class="faq-q-icon">Q</span><span class="faq-q-text">WiFi keeps disconnecting</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a">Auto-reconnect handles this automatically (backoff: 30s → 60s → 2min → max 5min).<br><br><b>If persistent:</b> Move device closer to router. TX power is limited to 2dBm to prevent audio noise. AP mode at <code>192.168.4.1</code> always works.</div>
+</div>
+
+<div class="faq-item" id="faq7" data-keywords="live echo feedback noise microphone">
+<div class="faq-q" onclick="toggleFaq('faq7')"><span class="faq-q-icon">Q</span><span class="faq-q-text">Live announcement has echo</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a">Speaker and mic are in the same enclosure. Point speaker away from mic, reduce volume, speak close to microphone.</div>
+</div>
+
+<div class="faq-item" id="faq8" data-keywords="pwa install app home screen">
+<div class="faq-q" onclick="toggleFaq('faq8')"><span class="faq-q-icon">Q</span><span class="faq-q-text">How to install as a phone app</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a"><b>Android:</b> Chrome menu (⋮) → "Add to Home Screen"<br><b>iPhone:</b> Safari Share (⬆) → "Add to Home Screen"<br><b>Desktop:</b> Address bar install icon<br><br>Opens full-screen like a native app. Still requires WiFi to the Smart Bell device.</div>
+</div>
+
+<div class="faq-item" id="faq9" data-keywords="serial command debug usb terminal">
+<div class="faq-q" onclick="toggleFaq('faq9')"><span class="faq-q-icon">Q</span><span class="faq-q-text">How to use serial debug commands</span><span class="faq-q-arrow">&#x25B6;</span></div>
+<div class="faq-a">Connect USB. Open serial terminal at <b>115200 baud</b>.<br><br>Commands: <code>time</code>, <code>date</code>, <code>settime</code>, <code>events</code>, <code>bell</code>, <code>stop</code>, <code>live</code>, <code>dftest</code>, <code>status</code>, <code>clear</code>, <code>logs</code>, <code>wifi</code>, <code>wifitest</code>, <code>ntp</code>, <code>resetpassword</code>, <code>showpassword</code>, <code>factoryreset YES</code>, <code>help</code></div>
+</div>
+
+</div>
+</div>
+
+<!-- ── About ── -->
+<div class="help-section" id="hs-about" data-keywords="about version features count hardware specs esp32">
+<div class="help-section-header" onclick="toggleHelpSection('hs-about')">
+<div class="help-section-icon">&#x2139;</div>
+<div class="help-section-title">About Smart Bell</div>
+<div class="help-section-arrow">&#x25B6;</div>
+</div>
+<div class="help-section-body">
+<div class="help-about-box">
+<div style="font-size:36px">&#x1F514;</div>
+<div class="help-about-ver">Smart Bell v2.0</div>
+<div class="help-about-feat">&#x2705; 190 Features across 23 Categories</div>
+</div>
+<p class="help-p" style="margin-top:12px"><b>Hardware:</b></p>
+<div style="background:#0f0f1e;border-radius:8px;padding:10px;margin-bottom:12px">
+<div class="help-about-row"><span class="help-about-label">MCU</span><span class="help-about-value">ESP32-WROOM-32</span></div>
+<div class="help-about-row"><span class="help-about-label">Display</span><span class="help-about-value">2.4" ILI9341 TFT (320×240)</span></div>
+<div class="help-about-row"><span class="help-about-label">Audio</span><span class="help-about-value">DFPlayer Mini + PCM5100A DAC</span></div>
+<div class="help-about-row"><span class="help-about-label">Microphone</span><span class="help-about-value">MEMS I2S</span></div>
+<div class="help-about-row"><span class="help-about-label">RTC</span><span class="help-about-value">DS1307 + CR2032 battery</span></div>
+<div class="help-about-row"><span class="help-about-label">Buttons</span><span class="help-about-value">4× (PLAY, NEXT, MENU, OK)</span></div>
+</div>
+<p class="help-p"><b>Network:</b></p>
+<div style="background:#0f0f1e;border-radius:8px;padding:10px;margin-bottom:12px">
+<div class="help-about-row"><span class="help-about-label">AP SSID</span><span class="help-about-value">SmartBell</span></div>
+<div class="help-about-row"><span class="help-about-label">AP Password</span><span class="help-about-value">bell1234</span></div>
+<div class="help-about-row"><span class="help-about-label">AP IP</span><span class="help-about-value">192.168.4.1</span></div>
+<div class="help-about-row"><span class="help-about-label">NTP Server</span><span class="help-about-value">pool.ntp.org</span></div>
+<div class="help-about-row"><span class="help-about-label">Timezone</span><span class="help-about-value">IST (UTC+5:30)</span></div>
+</div>
+<p class="help-p"><b>Limits:</b></p>
+<div style="background:#0f0f1e;border-radius:8px;padding:10px">
+<div class="help-about-row"><span class="help-about-label">Profiles</span><span class="help-about-value">8 environment types</span></div>
+<div class="help-about-row"><span class="help-about-label">Max Events</span><span class="help-about-value">100</span></div>
+<div class="help-about-row"><span class="help-about-label">Max Holidays</span><span class="help-about-value">50</span></div>
+<div class="help-about-row"><span class="help-about-label">Max Templates</span><span class="help-about-value">10</span></div>
+<div class="help-about-row"><span class="help-about-label">Max Tracks</span><span class="help-about-value">100 + 10 ringtones</span></div>
+<div class="help-about-row"><span class="help-about-label">Max Log Entries</span><span class="help-about-value">50</span></div>
+</div>
+</div>
+</div>
+
+</div>
+
+
+
+
+<!-- ===== PWA INSTALL BANNER ===== -->
+<div class="install-banner" id="installBanner">
+<div class="ib-wrap">
+<div class="ib-icon">&#x1F514;</div>
+<div class="ib-text">
+<div class="ib-title">Install Smart Bell App</div>
+<div class="ib-sub" id="installInstructions"></div>
+</div>
+<div class="ib-actions">
+<button class="ib-btn" id="installBtn" onclick="handleInstall()">Install</button>
+<button class="ib-x" onclick="dismissInstall()">&times;</button>
+</div>
+</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+
+/* ========== PWA ICON — canvas PNG + dynamic manifest ========== */
+(function(){
+var c=document.createElement('canvas');
+c.width=192;c.height=192;
+var g=c.getContext('2d');
+
+g.fillStyle='#1a1a3e';
+g.fillRect(0,0,192,192);
+
+g.fillStyle='#ffd700';
+g.beginPath();g.arc(96,30,8,0,Math.PI*2);g.fill();
+
+g.fillStyle='#ffd700';
+g.beginPath();
+g.moveTo(96,38);
+g.bezierCurveTo(60,38,42,68,42,100);
+g.lineTo(42,128);g.lineTo(30,140);g.lineTo(30,148);
+g.lineTo(162,148);g.lineTo(162,140);g.lineTo(150,128);
+g.lineTo(150,100);
+g.bezierCurveTo(150,68,132,38,96,38);
+g.closePath();g.fill();
+
+g.fillStyle='#e6c200';
+g.beginPath();g.arc(96,160,14,0,Math.PI*2);g.fill();
+
+var url=c.toDataURL('image/png');
+
+['apple-touch-icon','icon'].forEach(function(r){
+var el=document.querySelector("link[rel='"+r+"']");
+if(el){el.href=url}
+else{var l=document.createElement('link');l.rel=r;l.href=url;document.head.appendChild(l)}
+});
+
+var m=JSON.stringify({
+name:'Smart Bell',
+short_name:'SmartBell',
+description:'Automatic School Bell System',
+start_url:'/',
+display:'standalone',
+background_color:'#0f0f1e',
+theme_color:'#1a1a3e',
+orientation:'portrait',
+icons:[
+{src:url,sizes:'192x192',type:'image/png',purpose:'any'},
+{src:url,sizes:'512x512',type:'image/png',purpose:'any'}
+]
+});
+var blob=new Blob([m],{type:'application/manifest+json'});
+var mUrl=URL.createObjectURL(blob);
+var mLink=document.querySelector("link[rel='manifest']");
+if(mLink){mLink.href=mUrl}
+})();
+
+
+/* ========== AUTH ========== */
+var isAuthed=sessionStorage.getItem('smartbell_auth')==='true';
+
+function checkAuth(){
+if(isAuthed){
+var ov=document.getElementById('loginOverlay');
+if(ov)ov.style.display='none';
+} else {
+var ov=document.getElementById('loginOverlay');
+if(ov)ov.style.display='flex';
+setTimeout(function(){
+var pi=document.getElementById('pinInput');
+if(pi)pi.focus();
+},300);
+}
+}
+
+function doLogin(){
+var pin=document.getElementById('pinInput').value;
+if(!pin||pin.length<4){showLoginError('PIN must be at least 4 characters');return}
+
+var errEl=document.getElementById('loginError');
+errEl.textContent='Verifying...';
+errEl.style.color='#888';
+
+postJSON('/api/auth',{pin:pin}).then(function(d){
+if(!d){showLoginError('Connection failed');return}
+if(d.success){
+sessionStorage.setItem('smartbell_auth','true');
+isAuthed=true;
+var ov=document.getElementById('loginOverlay');
+ov.style.opacity='0';
+setTimeout(function(){ov.style.display='none';checkSetupWizard()},400);
+} else {
+showLoginError(d.error||'Wrong PIN');
+document.getElementById('pinInput').value='';
+document.getElementById('pinInput').focus();
+}
+});
+}
+
+function showLoginError(msg){
+var el=document.getElementById('loginError');
+el.textContent=msg;
+el.style.color='#f44336';
+}
+
+function changePassword(){
+var cur=document.getElementById('curPin').value;
+var newP=document.getElementById('newPin').value;
+var conf=document.getElementById('confPin').value;
+
+if(!cur){toast('Enter current PIN');return}
+if(!newP||newP.length<4){toast('New PIN must be 4-8 characters');return}
+if(newP.length>8){toast('PIN max 8 characters');return}
+if(newP!==conf){toast('PINs do not match');return}
+
+postJSON('/api/password',{current:cur,password:newP}).then(function(d){
+if(!d)return;
+if(d.success){
+toast('PIN changed successfully!');
+document.getElementById('curPin').value='';
+document.getElementById('newPin').value='';
+document.getElementById('confPin').value='';
+sessionStorage.removeItem('smartbell_auth');
+} else {
+toast('Error: '+(d.error||'Failed'));
+}
+});
+}
+var state='idle';
+var isHoliday=false;
+var DN=['Su','Mo','Tu','We','Th','Fr','Sa'];
+var RING_START=101;
+var RING_COUNT=10;
+var MAX_MUSIC=100;
+var soundNames={};
+var allTracks=[];
+var selectedTrack=0;
+var soundsLoaded=false;
+var currentTheme=0;
+var currentProfile=0;
+var PROFILES=[
+{id:0,icon:'\uD83C\uDFEB',name:'School',label:'School Name',defName:'ABC SCHOOL',examples:['Assembly','Period 1','Recess','Lunch Break','Dispersal']},
+{id:1,icon:'\uD83C\uDFE5',name:'Hospital',label:'Hospital Name',defName:'CITY HOSPITAL',examples:['Morning Round','Medication','Shift Change','OPD Start','Emergency Drill']},
+{id:2,icon:'\uD83C\uDFE8',name:'Hostel',label:'Hostel Name',defName:'SUNRISE HOSTEL',examples:['Wake Up','Breakfast','Study Hour','Dinner','Curfew']},
+{id:3,icon:'\uD83C\uDFE2',name:'Office',label:'Company Name',defName:'TECH CORP',examples:['Day Start','Lunch Break','Meeting','Tea Break','Day End']},
+{id:4,icon:'\uD83C\uDFDB',name:'Venue',label:'Venue Name',defName:'GRAND HALL',examples:['Session Start','Intermission','Session Resume','Closing','Evacuation']},
+{id:5,icon:'\uD83D\uDED5',name:'Temple',label:'Temple Name',defName:'SHRI TEMPLE',examples:['Morning Aarti','Darshan','Afternoon Prayer','Evening Aarti','Night Closing']},
+{id:6,icon:'\uD83C\uDFED',name:'Factory',label:'Factory Name',defName:'STEEL WORKS',examples:['Shift Start','Break','Safety Alert','Shift Change','Overtime']},
+{id:7,icon:'\uD83D\uDD27',name:'Custom',label:'Name',defName:'MY PLACE',examples:['Event 1','Event 2','Event 3','Event 4','Event 5']}
+];
+function getProfile(){return PROFILES[currentProfile]||PROFILES[0]}
+
+function switchTab(n,el){
+document.querySelectorAll('.tab-content').forEach(function(t){t.classList.remove('active')});
+document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+document.getElementById('tab-'+n).classList.add('active');
+el.classList.add('active');
+if(n==='schedule'){if(!soundsLoaded)loadSoundData();loadEvents();loadTemplates();loadHolidays()}
+if(n==='settings'){loadProfile();loadTime();loadSchoolName();loadTheme();loadColors();loadWiFiStatus()}
+if(n==='controls'){if(!soundsLoaded)loadSoundData()}
+if(n==='logs'){loadLogs()}
+if(n==='help'){document.getElementById('helpSearchInput').value='';searchHelp('')}
+if(n!=='logs'&&logAutoTimer){clearInterval(logAutoTimer);logAutoTimer=null;var cb=document.getElementById('logAutoRefresh');if(cb)cb.checked=false}
+}
+
+function toast(m){
+var t=document.getElementById('toast');
+t.textContent=m;t.classList.add('show');
+setTimeout(function(){t.classList.remove('show')},2500);
+}
+
+function api(url,opt){
+return fetch(url,opt||{}).then(function(r){
+if(!r.ok){toast('API error: '+r.status);return null}
+return r.text();
+}).then(function(txt){
+if(!txt) return null;
+txt=txt.replace(/"track"\s*:\s*0+([1-9]\d*)/g,'"track":\$1');
+try{return JSON.parse(txt)}
+catch(e){toast('JSON parse error');return null}
+}).catch(function(e){toast('Connection failed: '+e.message);return null});
+}
+
+function postAPI(url){
+return api(url,{method:'POST'});
+}
+
+function postJSON(url,data){
+return api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+}
+
+/* ========== TRACK SELECTOR ========== */
+function initTrackSelector(){
+var search=document.getElementById('trackSearch');
+var dropdown=document.getElementById('trackDropdown');
+
+search.addEventListener('click',function(e){
+e.stopPropagation();
+if(dropdown.classList.contains('open')){
+closeTrackDropdown();
+} else {
+search.readOnly=false;
+search.value='';
+search.placeholder='\uD83D\uDD0D Type to filter tracks...';
+openTrackDropdown();
+}
+});
+
+search.addEventListener('input',function(){
+filterTrackDropdown(search.value);
+});
+
+search.addEventListener('keydown',function(e){
+if(e.key==='Escape'){closeTrackDropdown();search.blur()}
+});
+
+document.addEventListener('click',function(e){
+var sel=document.getElementById('trackSelector');
+if(!sel.contains(e.target)){closeTrackDropdown()}
+});
+}
+
+function openTrackDropdown(){
+var dropdown=document.getElementById('trackDropdown');
+renderTrackDropdown('');
+dropdown.classList.add('open');
+}
+
+function closeTrackDropdown(){
+var dropdown=document.getElementById('trackDropdown');
+var search=document.getElementById('trackSearch');
+dropdown.classList.remove('open');
+search.readOnly=true;
+search.placeholder='\uD83D\uDD0D Search or tap to select track...';
+if(selectedTrack>0){
+search.value=getTrackDisplayName(selectedTrack);
+} else {
+search.value='';
+}
+}
+
+function getTrackDisplayName(track){
+var name=soundNames[track]||'';
+if(track>=RING_START && track<RING_START+RING_COUNT){
+var slot=track-RING_START+1;
+if(name) return '\uD83D\uDD14 Bell '+slot+': '+name;
+return '\uD83D\uDD14 Ringtone '+slot;
+} else {
+if(name) return '\u266B '+track+'. '+name;
+return '\u266B Track '+track;
+}
+}
+
+function renderTrackDropdown(filter){
+var dropdown=document.getElementById('trackDropdown');
+var html='';
+filter=filter.toLowerCase().trim();
+
+var musicTracks=[];
+var ringTracks=[];
+
+allTracks.forEach(function(s){
+if(s.track>=RING_START && s.track<RING_START+RING_COUNT){
+ringTracks.push(s);
+} else if(s.track>=1 && s.track<=MAX_MUSIC){
+musicTracks.push(s);
+}
+});
+
+musicTracks.sort(function(a,b){return a.track-b.track});
+ringTracks.sort(function(a,b){return a.track-b.track});
+
+if(filter){
+musicTracks=musicTracks.filter(function(s){
+var label=(s.name||'Track '+s.track).toLowerCase();
+return label.indexOf(filter)!==-1 || String(s.track).indexOf(filter)!==-1;
+});
+ringTracks=ringTracks.filter(function(s){
+var slot=s.track-RING_START+1;
+var label=(s.name||'Ringtone '+slot).toLowerCase();
+return label.indexOf(filter)!==-1 || ('ringtone '+slot).indexOf(filter)!==-1 || ('bell '+slot).indexOf(filter)!==-1;
+});
+}
+
+var hasResults=false;
+
+if(musicTracks.length>0){
+html+='<div class="track-dropdown-header">\u266B Music Tracks ('+musicTracks.length+')</div>';
+musicTracks.forEach(function(s){
+var sel=s.track===selectedTrack?' selected':'';
+var displayName=s.name||('Track '+s.track);
+html+='<div class="track-dropdown-item'+sel+'" onclick="selectTrack('+s.track+')">';
+html+='<span class="track-num">'+String(s.track).padStart(4,'0')+'</span>';
+html+='<span class="track-name">'+displayName+'</span>';
+html+='</div>';
+});
+hasResults=true;
+}
+
+if(ringTracks.length>0){
+html+='<div class="track-dropdown-header">\uD83D\uDD14 Bell Ringtones ('+ringTracks.length+')</div>';
+ringTracks.forEach(function(s){
+var slot=s.track-RING_START+1;
+var sel=s.track===selectedTrack?' selected':'';
+var displayName=s.name||('Ringtone '+slot);
+html+='<div class="track-dropdown-item'+sel+'" onclick="selectTrack('+s.track+')">';
+html+='<span class="track-num">Bell '+slot+'</span>';
+html+='<span class="track-name">'+displayName+'</span>';
+html+='</div>';
+});
+hasResults=true;
+}
+
+if(!hasResults){
+if(filter){
+html='<div class="track-dropdown-empty">No tracks match "'+filter+'"</div>';
+} else {
+html='<div class="track-dropdown-empty">No tracks available<br><span style="font-size:11px;color:#444">Sync from desktop app to see track names</span></div>';
+}
+}
+
+dropdown.innerHTML=html;
+}
+
+function filterTrackDropdown(text){
+renderTrackDropdown(text);
+}
+
+function selectTrack(track){
+selectedTrack=track;
+document.getElementById('evT').value=track;
+var search=document.getElementById('trackSearch');
+search.value=getTrackDisplayName(track);
+closeTrackDropdown();
+}
+
+/* ========== LOAD SOUND DATA ========== */
+function loadSoundData(){
+api('/api/sounds').then(function(d){
+if(!d){buildFallbackTracks();return}
+if(!d.sounds){buildFallbackTracks();return}
+
+soundNames={};
+allTracks=[];
+d.sounds.forEach(function(s){
+if(s.track && s.track>0){
+soundNames[s.track]=s.name||'';
+allTracks.push({track:Number(s.track),name:s.name||''});
+}
+});
+
+if(allTracks.length===0){
+buildFallbackTracks();
+} else {
+soundsLoaded=true;
+}
+
+updateRingtoneDropdown();
+if(selectedTrack>0){
+var search=document.getElementById('trackSearch');
+search.value=getTrackDisplayName(selectedTrack);
+}
+});
+}
+
+function buildFallbackTracks(){
+allTracks=[];
+soundNames={};
+for(var i=1;i<=20;i++){
+allTracks.push({track:i,name:''});
+}
+for(var i=0;i<RING_COUNT;i++){
+allTracks.push({track:RING_START+i,name:''});
+}
+soundsLoaded=true;
+}
+
+/* ========== RINGTONE NAMES ========== */
+function updateRingtoneDropdown(){
+var sel=document.getElementById('ringtoneSelect');
+for(var i=0;i<RING_COUNT;i++){
+var track=RING_START+i;
+var opt=sel.options[i];
+if(opt){
+var name=soundNames[track];
+if(name && name.length>0){
+opt.textContent=(i+1)+'. '+name;
+} else {
+opt.textContent='Ringtone '+(i+1);
+}
+}
+}
+}
+
+/* ========== THEME ========== */
+function loadTheme(){
+api('/api/theme').then(function(d){
+if(!d)return;
+currentTheme=d.theme;
+updateThemeButtons();
+});
+}
+
+function setTheme(t){
+postJSON('/api/theme',{theme:t}).then(function(d){
+if(!d)return;
+if(d.success){
+currentTheme=t;
+updateThemeButtons();
+toast('Theme changed!');
+} else {
+toast('Error: '+d.error);
+}
+});
+}
+
+function updateThemeButtons(){
+for(var i=0;i<8;i++){
+var el=document.getElementById('theme'+i);
+if(el){
+if(i===currentTheme){
+el.classList.add('active');
+} else {
+el.classList.remove('active');
+}
+}
+}
+}
+
+/* ========== STATUS ========== */
+function fetchStatus(){
+api('/api/status').then(function(d){
+if(!d)return;
+state=d.state;
+isHoliday=d.holiday||false;
+document.getElementById('clock').textContent=d.time;
+document.getElementById('dateDisplay').textContent=d.date;
+
+var b=document.getElementById('statusBadge');
+b.className='status';
+if(isHoliday){b.textContent='\uD83C\uDF89 Holiday';b.classList.add('status-holiday')}
+else if(d.state==='idle'){b.textContent='Idle';b.classList.add('status-idle')}
+else if(d.state==='manual_bell'){b.textContent='Ringing';b.classList.add('status-bell')}
+else if(d.state==='live'){b.textContent='LIVE';b.classList.add('status-live')}
+
+document.getElementById('dashState').textContent=d.state;
+document.getElementById('dashSched').textContent=isHoliday?'Holiday (paused)':d.scheduler;
+document.getElementById('dashEvents').textContent=d.events;
+document.getElementById('dashAudio').textContent=d.playing?'Playing':'Silent';
+document.getElementById('dashHoliday').textContent=isHoliday?'\uD83C\uDF89 Yes \u2014 bells skipped':'No';
+document.getElementById('dashHoliday').style.color=isHoliday?'#00bcd4':'#4caf50';
+
+if(d.profile!==undefined&&d.profile!==currentProfile){currentProfile=d.profile;updateProfileUI()}
+
+var bb=document.getElementById('bellBtn'),bl=document.getElementById('bellLbl');
+var bs=document.getElementById('bellSub');
+var lb=document.getElementById('liveBtn'),ll=document.getElementById('liveLbl');
+
+if(d.state==='manual_bell'){
+bb.classList.add('active');
+bl.textContent='Stop Bell';
+bs.textContent='Bell is ringing...';
+} else {
+bb.classList.remove('active');
+bl.textContent='Ring Bell';
+bs.textContent='Tap to ring selected ringtone';
+}
+
+if(d.state==='live'){lb.classList.add('active');ll.textContent='Stop Announcement'}
+else{lb.classList.remove('active');ll.textContent='Start Announcement'}
+});
+}
+
+/* ========== EVENTS ========== */
+function loadEvents(){
+api('/api/events').then(function(d){
+if(!d)return;
+document.getElementById('evCount').textContent=d.count;
+var el=document.getElementById('evList');
+
+if(d.count===0){el.innerHTML='<div class="empty-msg">No events scheduled</div>';return}
+
+var h='';
+d.events.forEach(function(ev){
+var isOneTime=ev.isOneTime||false;
+var days='';
+if(isOneTime){
+  days='\uD83D\uDCC5 '+(ev.oneTimeDate||'Once');
+}else{
+  for(var i=0;i<7;i++){if(ev.weekdayMask&(1<<i))days+=DN[i]+' '}
+  days=days.trim();
+}
+var t=String(ev.hour).padStart(2,'0')+':'+String(ev.minute).padStart(2,'0');
+var evName=ev.name||'';
+var trackName=soundNames[ev.track]||('Track '+ev.track);
+var checkedAttr=ev.enabled?'checked':'';
+var ec='event-item'+(ev.enabled?'':' disabled')+(isOneTime?' onetime-event':ev.eventType===1?' interval-event':'');
+h+='<div class="'+ec+'">';
+h+='<div class="event-time">'+t+'</div>';
+h+='<div class="event-info">';
+if(evName){h+='<div style="color:#ffd700;font-size:13px;font-weight:bold">'+evName+'</div>'}
+
+h+='<div class="event-days">'+days.trim()+'</div>';
+var durLabel=ev.duration>0?(ev.duration<60?ev.duration+'s':(ev.duration%60===0?Math.floor(ev.duration/60)+'m':Math.floor(ev.duration/60)+'m'+ev.duration%60+'s')):'Full';
+var typeLabel='';
+if(ev.eventType===1){
+var ivMin=ev.intervalMinutes||0;
+var ivStr=ivMin<60?ivMin+'min':(ivMin%60===0?Math.floor(ivMin/60)+'h':Math.floor(ivMin/60)+'h'+ivMin%60+'m');
+typeLabel=' \u00B7 \uD83D\uDD04 '+ivStr;
+if(ev.endMinute>0){var eH=Math.floor(ev.endMinute/60),eM=ev.endMinute%60;typeLabel+=' \u2192 '+(eH<10?'0':'')+eH+':'+(eM<10?'0':'')+eM}
+}
+h+='<div class="event-track">\u266B '+trackName+' \u00B7 '+durLabel+typeLabel+'</div>';
+h+='</div>';
+h+='<div class="event-actions">';
+h+='<label class="toggle"><input type="checkbox" '+checkedAttr+' onchange="toggleEvent('+ev.id+')"><span class="toggle-slider"></span></label>';
+h+='<button class="event-delete" onclick="delEvent('+ev.id+')">&#x2715;</button>';
+h+='</div>';
+h+='</div>';
+});
+el.innerHTML=h;
+});
+}
+
+function toggleEvent(id){
+postAPI('/api/events/toggle?id='+id).then(function(d){
+if(!d)return;
+if(d.success){
+var item=document.getElementById('ev-'+id);
+if(item){
+if(d.enabled){
+item.classList.remove('disabled');
+} else {
+item.classList.add('disabled');
+}
+}
+toast('Event #'+id+' '+(d.enabled?'enabled':'disabled'));
+} else {
+toast('Error: '+(d.error||'Toggle failed'));
+loadEvents();
+}
+});
+}
+
+function toggleEventTypeFields(){
+  var t=document.getElementById('evType').value;
+  document.getElementById('intervalFields').style.display=
+    t==='1'?'block':'none';
+  document.getElementById('onetimeFields').style.display=
+    t==='2'?'block':'none';
+  var dr=document.getElementById('daysFormRow');
+  if(dr)dr.style.display=t==='2'?'none':'flex';
+}
+function toggleIntervalFields(){toggleEventTypeFields()}
+
+function toggleEndTime(){
+var ne=document.getElementById('evNoEnd').checked;
+document.getElementById('evEndTime').disabled=ne;
+if(ne)document.getElementById('evEndTime').value='';
+}
+
+function resetEventForm(){
+  document.getElementById('evName').value='';
+  document.getElementById('evType').value='0';
+  document.getElementById('evIntH').value='0';
+  document.getElementById('evIntM').value='30';
+  document.getElementById('evNoEnd').checked=true;
+  document.getElementById('evEndTime').value='';
+  document.getElementById('evEndTime').disabled=true;
+  document.getElementById('intervalFields').style.display='none';
+  document.getElementById('onetimeFields').style.display='none';
+  var dr=document.getElementById('daysFormRow');
+  if(dr)dr.style.display='flex';
+}
+
+function addEvent(){
+  var name=(document.getElementById('evName').value||'').trim();
+  var h=parseInt(document.getElementById('evH').value)||0;
+  var m=parseInt(document.getElementById('evM').value)||0;
+  var t=parseInt(document.getElementById('evT').value)||0;
+  var evType=parseInt(document.getElementById('evType').value)||0;
+  var dur=parseInt(document.getElementById('evDur').value)||0;
+
+  if(t===0){toast('Please select a track');return}
+
+  // ── One-time path ──────────────────────────────────────────────────────
+  if(evType===2){
+    var dateVal=document.getElementById('evOneTimeDate').value;
+    if(!dateVal){toast('Select a date for one-time event');return}
+    postJSON('/api/events',{
+      name:name,hour:h,minute:m,
+      track:t,duration:dur,
+      eventType:2,date:dateVal
+    }).then(function(d){
+      if(!d)return;
+      if(d.success){
+        toast('One-time event added (#'+d.id+')');
+        loadEvents();
+        resetEventForm();
+      }else toast('Error: '+(d.error||'Failed'));
+    });
+    return;
+  }
+
+  // ── Fixed / Interval path ──────────────────────────────────────────────
+  var mask=0;
+  for(var i=0;i<7;i++){if(document.getElementById('d'+i).checked)mask|=(1<<i)}
+  if(mask===0){toast('Select at least one day');return}
+
+  var intH=parseInt(document.getElementById('evIntH').value)||0;
+  var intM=parseInt(document.getElementById('evIntM').value)||0;
+  var intervalMinutes=intH*60+intM;
+  var endMinute=0;
+  if(evType===1&&!document.getElementById('evNoEnd').checked){
+    var et=document.getElementById('evEndTime').value;
+    if(et){var ep=et.split(':');endMinute=parseInt(ep[0])*60+parseInt(ep[1])}
+  }
+  if(evType===1&&intervalMinutes<5){toast('Minimum interval: 5 minutes');return}
+
+  postJSON('/api/events',{
+    name:name,hour:h,minute:m,
+    weekdayMask:mask,folder:1,track:t,
+    duration:dur,eventType:evType,
+    intervalMinutes:intervalMinutes,endMinute:endMinute
+  }).then(function(d){
+    if(!d)return;
+    if(d.success){
+      toast('Event added (#'+d.id+')');
+      loadEvents();
+      resetEventForm();
+    }else toast('Error: '+(d.error||'Failed'));
+  });
+}
+
+function delEvent(id){
+if(!confirm('Delete event #'+id+'?'))return;
+api('/api/events?id='+id,{method:'DELETE'}).then(function(d){
+if(!d)return;
+if(d.success){toast('Deleted');loadEvents()}
+else toast(d.error);
+});
+}
+
+function clearAll(){
+if(!confirm('Delete ALL events?'))return;
+postAPI('/api/events/clear').then(function(d){
+if(d&&d.success){toast('All cleared');loadEvents()}
+});
+}
+
+/* ========== TEMPLATES ========== */
+function loadTemplates(){
+api('/api/templates').then(function(d){
+if(!d)return;
+var el=document.getElementById('tplList');
+var countEl=document.getElementById('tplCount');
+countEl.textContent=d.count+'/'+d.max+' templates';
+
+if(d.count===0){el.innerHTML='<div class="empty-msg">No templates saved</div>';return}
+
+var h='';
+d.templates.forEach(function(tpl){
+h+='<div class="tpl-item">';
+h+='<div class="tpl-info">';
+h+='<div class="tpl-name">\uD83D\uDCCB '+tpl.name+'</div>';
+h+='<div class="tpl-count">'+tpl.events+' events</div>';
+h+='</div>';
+h+='<div class="tpl-actions">';
+h+='<button class="tpl-load" onclick="loadTemplate('+tpl.id+',\''+tpl.name.replace(/'/g,"\\'")+'\')">Load</button>';
+h+='<button class="tpl-delete" onclick="delTemplate('+tpl.id+',\''+tpl.name.replace(/'/g,"\\'")+'\')">&#x2715;</button>';
+h+='</div>';
+h+='</div>';
+});
+el.innerHTML=h;
+});
+}
+
+function saveTemplate(){
+var name=(document.getElementById('tplName').value||'').trim();
+if(!name){toast('Enter a template name');return}
+
+postJSON('/api/templates/save',{name:name}).then(function(d){
+if(!d)return;
+if(d.success){
+toast('Template saved: '+d.name);
+document.getElementById('tplName').value='';
+loadTemplates();
+} else {
+toast('Error: '+(d.error||'Failed'));
+}
+});
+}
+
+function loadTemplate(id,name){
+if(!confirm('Load template "'+name+'"?\n\nThis will REPLACE all current events.')){return}
+postAPI('/api/templates/load?id='+id).then(function(d){
+if(!d)return;
+if(d.success){
+toast('Loaded: '+name+' ('+d.events+' events)');
+loadEvents();
+loadTemplates();
+} else {
+toast('Error: '+(d.error||'Failed'));
+}
+});
+}
+
+function delTemplate(id,name){
+if(!confirm('Delete template "'+name+'"?'))return;
+api('/api/templates?id='+id,{method:'DELETE'}).then(function(d){
+if(!d)return;
+if(d.success){toast('Template deleted');loadTemplates()}
+else toast(d.error||'Not found');
+});
+}
+
+/* ========== HOLIDAYS ========== */
+function loadHolidays(){
+api('/api/holidays').then(function(d){
+if(!d)return;
+var el=document.getElementById('holList');
+var countEl=document.getElementById('holCount');
+countEl.textContent=d.count+'/'+d.max+' holidays';
+
+if(d.count===0){el.innerHTML='<div class="empty-msg">No holidays set</div>';return}
+
+var today=new Date();
+today.setHours(0,0,0,0);
+
+var holidays=d.holidays.sort(function(a,b){return a.date.localeCompare(b.date)});
+
+var h='';
+holidays.forEach(function(hol){
+var holDate=new Date(hol.date+'T00:00:00');
+var isPast=holDate<today;
+var isToday=holDate.getTime()===today.getTime();
+var pastClass=isPast?'holiday-past':'';
+
+var parts=hol.date.split('-');
+var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var niceDate=parseInt(parts[2])+' '+months[parseInt(parts[1])-1]+' '+parts[0];
+
+h+='<div class="holiday-item '+pastClass+'">';
+h+='<div class="holiday-date">'+niceDate;
+if(isToday)h+=' <span class="holiday-badge">TODAY</span>';
+h+='</div>';
+h+='<div class="holiday-name">'+(hol.name||'')+'</div>';
+h+='<button class="holiday-delete" onclick="delHoliday(\''+hol.date+'\')">&#x2715;</button>';
+h+='</div>';
+});
+el.innerHTML=h;
+});
+}
+
+function addHoliday(){
+var dateVal=document.getElementById('holDate').value;
+var nameVal=(document.getElementById('holName').value||'').trim();
+
+if(!dateVal){toast('Select a date');return}
+
+postJSON('/api/holidays',{date:dateVal,name:nameVal}).then(function(d){
+if(!d)return;
+if(d.success){
+toast('Holiday added: '+dateVal);
+document.getElementById('holName').value='';
+loadHolidays();
+} else {
+toast('Error: '+(d.error||'Failed'));
+}
+});
+}
+
+function delHoliday(dateStr){
+if(!confirm('Remove holiday '+dateStr+'?'))return;
+api('/api/holidays?date='+dateStr,{method:'DELETE'}).then(function(d){
+if(!d)return;
+if(d.success){toast('Holiday removed');loadHolidays()}
+else toast(d.error||'Not found');
+});
+}
+
+function clearHolidays(){
+if(!confirm('Remove ALL holidays?'))return;
+postAPI('/api/holidays/clear').then(function(d){
+if(d&&d.success){toast('All holidays cleared');loadHolidays()}
+});
+}
+
+/* ========== TIME ========== */
+function loadTime(){
+api('/api/time').then(function(d){
+if(!d)return;
+document.getElementById('sY').value=d.year;
+document.getElementById('sMo').value=d.month;
+document.getElementById('sD').value=d.day;
+document.getElementById('sH').value=d.hour;
+document.getElementById('sMi').value=d.minute;
+});
+}
+
+function syncPhone(){
+var n=new Date();
+document.getElementById('sY').value=n.getFullYear();
+document.getElementById('sMo').value=n.getMonth()+1;
+document.getElementById('sD').value=n.getDate();
+document.getElementById('sH').value=n.getHours();
+document.getElementById('sMi').value=n.getMinutes();
+toast('Phone time loaded - tap Save');
+}
+
+function saveTime(){
+var data={
+year:parseInt(document.getElementById('sY').value),
+month:parseInt(document.getElementById('sMo').value),
+day:parseInt(document.getElementById('sD').value),
+hour:parseInt(document.getElementById('sH').value),
+minute:parseInt(document.getElementById('sMi').value),
+second:0
+};
+postJSON('/api/time',data).then(function(d){
+if(!d)return;
+if(d.success){toast('Time saved!');fetchStatus()}
+else toast('Error: '+d.error);
+});
+}
+
+/* ========== CONTROLS ========== */
+function triggerBell(){
+if(state==='manual_bell'){
+postAPI('/api/manual-bell').then(function(d){
+if(d){toast('Bell stopped');fetchStatus()}
+});
+return;
+}
+var track=document.getElementById('ringtoneSelect').value;
+postAPI('/api/manual-bell?track='+track).then(function(d){
+if(d){
+var sel=document.getElementById('ringtoneSelect');
+var name=sel.options[sel.selectedIndex].textContent;
+toast('Ringing: '+name);
+fetchStatus();
+}
+});
+}
+
+function toggleLive(){
+var url=state==='live'?'/api/live/stop':'/api/live/start';
+postAPI(url).then(function(d){
+if(d){toast(d.message);fetchStatus()}
+});
+}
+
+/* ========== AUDIO RESET ========== */
+function resetAudio() {
+    var btn = document.getElementById('audioResetBtn');
+    btn.disabled = true;
+    btn.textContent = '\u23F3 Resetting DFPlayer...';
+    postAPI('/api/audio/reset').then(function(d) {
+        btn.disabled = false;
+        btn.textContent = '\uD83D\uDD04 Reset Audio / SD Card';
+        if (d && d.success) {
+            toast('Audio reset complete!');
+            fetchStatus();
+        } else {
+            toast('Error: ' + (d ? d.error : 'Connection failed'));
+        }
+    });
+}
+
+function triggerStop(){
+postAPI('/api/stop').then(function(d){
+if(d){toast('Stopped');fetchStatus()}
+});
+}
+
+/* ========== ENVIRONMENT PROFILE ========== */
+function loadProfile(){
+api('/api/profile').then(function(d){
+if(!d)return;
+currentProfile=d.profile||0;
+updateProfileUI();
+});
+}
+
+function setProfile(p){
+postJSON('/api/profile',{profile:p}).then(function(d){
+if(!d)return;
+if(d.success){
+currentProfile=p;
+updateProfileUI();
+toast('Profile: '+getProfile().name);
+}else{
+toast('Error: '+(d.error||'Failed'));
+}
+});
+}
+
+function updateProfileUI(){
+var grid=document.getElementById('profileGrid');
+if(grid){
+var h='';
+PROFILES.forEach(function(pr){
+var sel=pr.id===currentProfile?' active':'';
+h+='<div class="theme-option'+sel+'" onclick="setProfile('+pr.id+')" style="padding:10px 6px">';
+h+='<div style="font-size:24px;margin-bottom:2px">'+pr.icon+'</div>';
+h+='<div style="font-size:12px;font-weight:bold">'+pr.name+'</div>';
+h+='</div>';
+});
+grid.innerHTML=h;
+}
+// Update name label
+var lbl=document.getElementById('nameLabel');
+if(lbl)lbl.textContent=getProfile().label;
+// Update name placeholder
+var inp=document.getElementById('schoolNameInput');
+if(inp)inp.placeholder='e.g. '+getProfile().defName;
+// Update event name placeholder
+var evn=document.getElementById('evName');
+if(evn){
+var ex=getProfile().examples;
+evn.placeholder='e.g. '+ex[0]+', '+ex[1]+'...';
+}
+}
+
+
+/* ========== SCHOOL NAME ========== */
+function loadSchoolName(){
+api('/api/schoolname').then(function(d){
+if(!d)return;
+document.getElementById('schoolNameInput').value=d.name;
+});
+}
+
+function saveSchoolName(){
+var name=document.getElementById('schoolNameInput').value.trim();
+if(!name){toast('Enter a school name');return}
+if(name.length>20){toast('Max 20 characters');return}
+postJSON('/api/schoolname',{name:name}).then(function(d){
+if(!d)return;
+if(d.success){toast('School name saved!');document.getElementById('schoolNameInput').value=d.name}
+else toast('Error: '+d.error);
+});
+}
+
+/* ========== CUSTOM BACKGROUND ========== */
+var customBgData=null;
+
+function previewCustomBg(input){
+if(!input.files||!input.files[0])return;
+var file=input.files[0];
+document.getElementById('bgFileName').textContent=file.name+' ('+Math.round(file.size/1024)+' KB)';
+
+var reader=new FileReader();
+reader.onload=function(e){
+var img=new Image();
+img.onload=function(){
+var canvas=document.getElementById('bgPreview');
+var ctx=canvas.getContext('2d');
+canvas.width=320;
+canvas.height=240;
+
+var imgRatio=img.width/img.height;
+var canvasRatio=320/240;
+var sx=0,sy=0,sw=img.width,sh=img.height;
+
+if(imgRatio>canvasRatio){
+sw=img.height*canvasRatio;
+sx=(img.width-sw)/2;
+} else {
+sh=img.width/canvasRatio;
+sy=(img.height-sh)/2;
+}
+
+ctx.drawImage(img,sx,sy,sw,sh,0,0,320,240);
+canvas.style.display='block';
+document.getElementById('bgUploadBtn').style.display='block';
+
+var imageData=ctx.getImageData(0,0,320,240);
+var pixels=imageData.data;
+var buffer=new ArrayBuffer(320*240*2);
+var view=new DataView(buffer);
+var offset=0;
+
+for(var y=0;y<240;y++){
+for(var x=0;x<320;x++){
+var i=(y*320+x)*4;
+var r=pixels[i];
+var g=pixels[i+1];
+var b=pixels[i+2];
+var rgb565=((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);
+view.setUint16(offset,rgb565,true);
+offset+=2;
+}
+}
+
+customBgData=buffer;
+document.getElementById('bgFileName').textContent=file.name+' \u2014 Ready to upload (150 KB)';
+};
+img.src=e.target.result;
+};
+reader.readAsDataURL(file);
+}
+
+function uploadCustomBg(){
+if(!customBgData){toast('No image selected');return}
+
+var btn=document.getElementById('bgUploadBtn');
+btn.disabled=true;
+btn.textContent='Uploading...';
+
+var progress=document.getElementById('bgUploadProgress');
+var bar=document.getElementById('bgProgressBar');
+var text=document.getElementById('bgProgressText');
+progress.style.display='block';
+bar.style.width='0%';
+text.textContent='Uploading 150 KB...';
+
+var blob=new Blob([customBgData],{type:'application/octet-stream'});
+
+var xhr=new XMLHttpRequest();
+xhr.open('POST','/api/custom-bg',true);
+
+xhr.upload.onprogress=function(e){
+if(e.lengthComputable){
+var pct=Math.round(e.loaded/e.total*100);
+bar.style.width=pct+'%';
+text.textContent=pct+'% ('+Math.round(e.loaded/1024)+'/'+Math.round(e.total/1024)+' KB)';
+}
+};
+
+xhr.onload=function(){
+btn.disabled=false;
+btn.textContent='\uD83D\uDCE4 Upload & Apply';
+if(xhr.status===200){
+bar.style.width='100%';
+text.textContent='Done!';
+toast('Custom background applied!');
+currentTheme=7;
+updateThemeButtons();
+setTimeout(function(){progress.style.display='none'},2000);
+} else {
+text.textContent='Upload failed';
+toast('Upload failed: '+xhr.statusText);
+}
+};
+
+xhr.onerror=function(){
+btn.disabled=false;
+btn.textContent='\uD83D\uDCE4 Upload & Apply';
+text.textContent='Connection error';
+toast('Connection failed');
+};
+
+xhr.send(blob);
+}
+
+/* ========== DISPLAY COLORS ========== */
+function loadColors(){
+api('/api/colors').then(function(d){
+if(!d)return;
+document.getElementById('nameColorPicker').value=d.nameColor;
+document.getElementById('clockColorPicker').value=d.clockColor;
+document.getElementById('nameColorHex').textContent=d.nameColor;
+document.getElementById('clockColorHex').textContent=d.clockColor;
+});
+}
+
+function saveColors(){
+var nc=document.getElementById('nameColorPicker').value.toUpperCase();
+var cc=document.getElementById('clockColorPicker').value.toUpperCase();
+postJSON('/api/colors',{nameColor:nc,clockColor:cc}).then(function(d){
+if(!d)return;
+if(d.success){
+toast('Colors applied!');
+document.getElementById('nameColorHex').textContent=nc;
+document.getElementById('clockColorHex').textContent=cc;
+} else {
+toast('Error saving colors');
+}
+});
+}
+
+/* ========== WIFI SETTINGS ========== */
+function loadWiFiStatus(){
+api('/api/wifi/status').then(function(d){
+if(!d)return;
+var modeEl=document.getElementById('wifiMode');
+var ssidEl=document.getElementById('wifiSSID');
+var ipEl=document.getElementById('wifiIP');
+var sigEl=document.getElementById('wifiSignal');
+var ntpEl=document.getElementById('wifiNTP');
+
+if(d.mode==='station'){
+modeEl.innerHTML='&#x1F4F6; Station';
+modeEl.style.color='#4caf50';
+if(d.connected){
+ssidEl.textContent=d.ssid;
+ipEl.textContent=d.ip;
+sigEl.textContent=d.rssi+' dBm ('+d.quality+')';
+sigEl.style.color=d.rssi>-60?'#4caf50':d.rssi>-70?'#ffd700':'#f44336';
+} else {
+ssidEl.textContent='Disconnected';
+ssidEl.style.color='#f44336';
+ipEl.textContent='--';
+sigEl.textContent='--';
+}
+} else {
+modeEl.innerHTML='&#x1F4E1; Access Point';
+modeEl.style.color='#ffd700';
+ssidEl.textContent=d.apSSID;
+ipEl.textContent=d.apIP;
+sigEl.textContent=(d.clients!==undefined)?d.clients+' client(s)':'--';
+sigEl.style.color='#888';
+}
+
+if(d.ntpSynced){
+var ago=d.ntpLastSync;
+var agoStr='';
+if(ago<60)agoStr=ago+'s ago';
+else if(ago<3600)agoStr=Math.floor(ago/60)+'m ago';
+else agoStr=Math.floor(ago/3600)+'h '+Math.floor((ago%3600)/60)+'m ago';
+ntpEl.textContent='\u2705 Synced ('+agoStr+')';
+ntpEl.style.color='#4caf50';
+} else {
+ntpEl.textContent=d.mode==='station'?'Not yet synced':'Requires station mode';
+ntpEl.style.color='#888';
+}
+});
+}
+
+function scanWiFi(){
+var btn=document.getElementById('scanBtn');
+btn.textContent='Scanning...';
+btn.disabled=true;
+
+api('/api/wifi/scan').then(function(d){
+if(!d){btn.textContent='\uD83D\uDD04 Scan Networks';btn.disabled=false;return}
+
+if(d.scanning){
+btn.textContent='Scanning...';
+var el=document.getElementById('wifiNetworks');
+el.style.display='block';
+el.innerHTML='<div class="empty-msg">Scanning nearby networks...<br>Tap Scan again in 3 seconds</div>';
+setTimeout(function(){
+btn.textContent='\uD83D\uDD04 Scan Again';
+btn.disabled=false;
+},3000);
+return;
+}
+
+btn.textContent='\uD83D\uDD04 Scan Networks';
+btn.disabled=false;
+
+var el=document.getElementById('wifiNetworks');
+el.style.display='block';
+
+if(d.count===0){
+el.innerHTML='<div class="empty-msg">No networks found. Tap Scan again.</div>';
+return;
+}
+
+var h='';
+d.networks.forEach(function(net){
+var lockIcon=net.encrypted?'\uD83D\uDD12':'';
+var sigColor=net.rssi>-60?'#4caf50':net.rssi>-70?'#ffd700':'#f44336';
+var ssidSafe=net.ssid.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+
+h+='<div style="display:flex;align-items:center;padding:10px 12px;background:#0f0f1e;border-radius:8px;margin-bottom:4px;cursor:pointer;border:1px solid #2a2a5e" onclick="selectNetwork(\''+ssidSafe+'\','+net.encrypted+')">';
+h+='<div style="flex:1">';
+h+='<div style="font-size:14px;font-weight:bold;color:#fff">'+lockIcon+' '+net.ssid+'</div>';
+h+='<div style="font-size:11px;color:#888">'+net.quality+' ('+net.rssi+' dBm)</div>';
+h+='</div>';
+h+='<div style="width:40px;text-align:right">';
+var bars=net.rssi>-60?4:net.rssi>-70?3:net.rssi>-80?2:1;
+for(var b=0;b<4;b++){
+var barColor=b<bars?sigColor:'#333';
+var barH=6+b*4;
+h+='<div style="display:inline-block;width:4px;height:'+barH+'px;background:'+barColor+';margin-left:2px;vertical-align:bottom;border-radius:1px"></div>';
+}
+h+='</div>';
+h+='</div>';
+});
+el.innerHTML=h;
+});
+}
+
+function selectNetwork(ssid,encrypted){
+document.getElementById('wifiSSIDInput').value=ssid;
+document.getElementById('wifiConnForm').style.display='block';
+document.getElementById('wifiPassInput').value='';
+if(!encrypted){
+document.getElementById('wifiPassInput').placeholder='Open network (no password)';
+} else {
+document.getElementById('wifiPassInput').placeholder='Enter WiFi password';
+}
+document.getElementById('wifiPassInput').focus();
+}
+
+function connectWiFi(){
+var ssid=document.getElementById('wifiSSIDInput').value;
+var pass=document.getElementById('wifiPassInput').value;
+
+if(!ssid){toast('Select a network first');return}
+
+toast('Connecting to '+ssid+'...');
+
+postJSON('/api/wifi/connect',{ssid:ssid,password:pass}).then(function(d){
+if(!d)return;
+if(d.success){
+toast(d.message);
+document.getElementById('wifiConnForm').style.display='none';
+document.getElementById('wifiNetworks').style.display='none';
+setTimeout(loadWiFiStatus,8000);
+setTimeout(loadWiFiStatus,15000);
+} else {
+toast('Error: '+(d.error||'Failed'));
+}
+});
+}
+
+function forceAPMode(){
+if(!confirm('Switch to AP mode only? You will need to reconnect to SmartBell WiFi.'))return;
+postAPI('/api/wifi/ap').then(function(d){
+if(d&&d.success){
+toast(d.message);
+setTimeout(loadWiFiStatus,3000);
+}
+});
+}
+
+function forceNTPSync(){
+postAPI('/api/ntp/sync').then(function(d){
+if(!d)return;
+if(d.success){
+toast(d.message);
+loadWiFiStatus();
+fetchStatus();
+} else {
+toast('Error: '+(d.error||'NTP sync failed'));
+}
+});
+}
+
+/* ========== SYSTEM LOGS ========== */
+var allLogs=[];
+var currentLogFilter='ALL';
+var logAutoTimer=null;
+
+var LOG_COLORS={
+'BELL':'#4CAF50',
+'SCHED':'#2196F3',
+'AUDIO':'#FF9800',
+'SET':'#9C27B0',
+'SYS':'#607D8B',
+'ERROR':'#f44336'
+};
+
+var LOG_ICONS={
+'BELL':'\uD83D\uDD14',
+'SCHED':'\uD83D\uDCC5',
+'AUDIO':'\uD83D\uDD0A',
+'SET':'\u2699\uFE0F',
+'SYS':'\uD83D\uDCBB',
+'ERROR':'\u274C'
+};
+
+function loadLogs(){
+api('/api/logs').then(function(d){
+if(!d)return;
+allLogs=d.logs||[];
+document.getElementById('logCount').textContent=allLogs.length+' / 50 entries';
+renderLogs();
+});
+}
+
+function renderLogs(){
+var container=document.getElementById('logList');
+
+var filtered=allLogs;
+if(currentLogFilter!=='ALL'){
+filtered=allLogs.filter(function(l){return l.cat===currentLogFilter});
+}
+
+if(filtered.length===0){
+container.innerHTML='<div class="empty-msg">'+(currentLogFilter==='ALL'?'No log entries yet':'No '+currentLogFilter+' entries')+'</div>';
+return;
+}
+
+var html='';
+filtered.forEach(function(entry,i){
+var color=LOG_COLORS[entry.cat]||'#888';
+var icon=LOG_ICONS[entry.cat]||'\uD83D\uDCDD';
+var bgColor=i%2===0?'#1a1a1a':'#111';
+
+html+='<div class="log-entry" style="background:'+bgColor+'">';
+html+='<span class="log-time">'+escapeHtml(entry.time)+'</span>';
+html+='<span class="log-cat" style="color:'+color+'">'+icon+' '+entry.cat+'</span>';
+html+='<span class="log-msg">'+escapeHtml(entry.msg)+'</span>';
+html+='</div>';
+});
+
+container.innerHTML=html;
+}
+
+function filterLogs(category,btn){
+currentLogFilter=category;
+document.querySelectorAll('.log-filter').forEach(function(b){
+b.style.background='#222';
+b.classList.remove('active');
+});
+btn.style.background='#444';
+btn.classList.add('active');
+renderLogs();
+}
+
+function clearLogs(){
+if(!confirm('Clear all log entries?'))return;
+postAPI('/api/logs/clear').then(function(d){
+if(d&&d.ok)loadLogs();
+});
+}
+
+function toggleLogAutoRefresh(enabled){
+if(logAutoTimer){clearInterval(logAutoTimer);logAutoTimer=null}
+if(enabled){logAutoTimer=setInterval(loadLogs,5000)}
+}
+
+function escapeHtml(text){
+var div=document.createElement('div');
+div.textContent=text;
+return div.innerHTML;
+}
+
+/* ========== BACKUP & RESTORE ========== */
+function downloadBackup(){
+var status=document.getElementById('backupStatus');
+status.textContent='Downloading...';
+status.style.color='#888';
+
+fetch('/api/backup').then(function(r){
+if(!r.ok)throw new Error('Backup failed: '+r.status);
+return r.blob();
+}).then(function(blob){
+var now=new Date();
+var dateStr=now.getFullYear()+
+String(now.getMonth()+1).padStart(2,'0')+
+String(now.getDate()).padStart(2,'0')+'_'+
+String(now.getHours()).padStart(2,'0')+
+String(now.getMinutes()).padStart(2,'0');
+var filename='smartbell_backup_'+dateStr+'.json';
+
+var url=URL.createObjectURL(blob);
+var a=document.createElement('a');
+a.href=url;
+a.download=filename;
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+URL.revokeObjectURL(url);
+
+status.textContent='\u2705 Backup downloaded!';
+status.style.color='#4caf50';
+setTimeout(function(){status.textContent=''},5000);
+}).catch(function(err){
+status.textContent='\u274C '+err.message;
+status.style.color='#f44336';
+});
+}
+
+var restoreData=null;
+
+function restoreFileSelected(){
+var fileInput=document.getElementById('restoreFile');
+var file=fileInput.files[0];
+if(!file)return;
+
+document.getElementById('restoreFileName').textContent=file.name+' ('+(file.size/1024).toFixed(1)+' KB)';
+
+var reader=new FileReader();
+reader.onload=function(e){
+try{
+restoreData=JSON.parse(e.target.result);
+
+if(!restoreData.version){
+throw new Error('Not a valid backup file');
+}
+
+var info='<b style="color:#ffd700">Backup Contents:</b><br>';
+info+='\u2022 School Name: <b>'+(restoreData.schoolName||'N/A')+'</b><br>';
+info+='\u2022 Theme: <b>'+(restoreData.theme!==undefined?restoreData.theme:'N/A')+'</b><br>';
+info+='\u2022 Events: <b>'+(restoreData.events?restoreData.events.length:0)+'</b><br>';
+info+='\u2022 Holidays: <b>'+(restoreData.holidays?restoreData.holidays.length:0)+'</b><br>';
+info+='\u2022 Sound Names: <b>'+(restoreData.sounds?restoreData.sounds.length:0)+'</b><br>';
+info+='\u2022 Password: <b>'+(restoreData.password?'Included':'Not included')+'</b><br>';
+info+='<br><span style="color:#f44336">\u26A0\uFE0F This will REPLACE all current settings!</span>';
+
+document.getElementById('restoreInfo').innerHTML=info;
+document.getElementById('restorePreview').style.display='block';
+
+}catch(err){
+document.getElementById('restoreFileName').textContent='\u274C Invalid file: '+err.message;
+document.getElementById('restorePreview').style.display='none';
+restoreData=null;
+}
+};
+reader.readAsText(file);
+}
+
+function cancelRestore(){
+document.getElementById('restorePreview').style.display='none';
+document.getElementById('restoreFile').value='';
+document.getElementById('restoreFileName').textContent='No file selected';
+restoreData=null;
+}
+
+function executeRestore(){
+if(!restoreData)return;
+if(!confirm('Are you sure? This will replace ALL current settings with the backup data.'))return;
+
+document.getElementById('restorePreview').style.display='none';
+document.getElementById('restoreProgress').style.display='block';
+document.getElementById('restoreBar').style.width='30%';
+document.getElementById('restoreBar').style.background='#4caf50';
+document.getElementById('restoreStatus').textContent='Uploading backup...';
+document.getElementById('restoreStatus').style.color='#888';
+
+var jsonStr=JSON.stringify(restoreData);
+
+fetch('/api/restore',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:jsonStr
+}).then(function(r){
+document.getElementById('restoreBar').style.width='80%';
+if(!r.ok)throw new Error('Restore failed: '+r.status);
+return r.json();
+}).then(function(data){
+document.getElementById('restoreBar').style.width='100%';
+if(data.success){
+document.getElementById('restoreStatus').textContent='\u2705 Restore complete! '+data.restored+' categories restored. Refreshing...';
+document.getElementById('restoreStatus').style.color='#4caf50';
+toast('Restore complete!');
+setTimeout(function(){location.reload()},2000);
+} else {
+throw new Error(data.error||'Unknown error');
+}
+}).catch(function(err){
+document.getElementById('restoreBar').style.width='100%';
+document.getElementById('restoreBar').style.background='#f44336';
+document.getElementById('restoreStatus').textContent='\u274C '+err.message;
+document.getElementById('restoreStatus').style.color='#f44336';
+toast('Restore failed: '+err.message);
+});
+
+restoreData=null;
+document.getElementById('restoreFile').value='';
+document.getElementById('restoreFileName').textContent='No file selected';
+}
+
+/* ========== PWA INSTALL BANNER ========== */
+var deferredPrompt=null;
+var installDismissed=false;
+
+function detectPlatform(){
+var ua=navigator.userAgent||'';
+var isIOS=/iPad|iPhone|iPod/.test(ua)&&!window.MSStream;
+var isAndroid=/Android/.test(ua);
+var isSafari=isIOS&&/Safari/.test(ua)&&!/CriOS|FxiOS/.test(ua);
+var isChrome=/Chrome/.test(ua)&&!/Edge|Edg|OPR/.test(ua);
+var isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+return {isIOS:isIOS,isAndroid:isAndroid,isSafari:isSafari,isChrome:isChrome,isStandalone:isStandalone};
+}
+
+function showInstallBanner(){
+if(installDismissed)return;
+var p=detectPlatform();
+if(p.isStandalone)return;
+
+// Only show on mobile or if native prompt available
+if(!p.isIOS && !p.isAndroid && !deferredPrompt)return;
+
+var key='smartbell_install_dismiss';
+var dismissed=localStorage.getItem(key);
+if(dismissed){
+var ts=parseInt(dismissed);
+if(Date.now()-ts<7*24*60*60*1000)return;
+}
+
+var instrEl=document.getElementById('installInstructions');
+var installBtn=document.getElementById('installBtn');
+
+if(deferredPrompt){
+instrEl.innerHTML='Add to your home screen for a <b>native app experience</b>';
+installBtn.textContent='Install';
+installBtn.style.display='inline-block';
+} else if(p.isIOS){
+instrEl.innerHTML='Tap <b>Share</b> \u2B06 then <b>"Add to Home Screen"</b>';
+installBtn.style.display='none';
+} else if(p.isAndroid){
+instrEl.innerHTML='Tap <b>\u22EE Menu</b> then <b>"Add to Home Screen"</b>';
+installBtn.style.display='none';
+} else {
+instrEl.innerHTML='Tap browser menu \u2192 <b>"Install"</b> or <b>"Add to Home Screen"</b>';
+installBtn.style.display='none';
+}
+
+setTimeout(function(){
+document.getElementById('installBanner').classList.add('show');
+},2000);
+}
+
+function handleInstall(){
+if(deferredPrompt){
+deferredPrompt.prompt();
+deferredPrompt.userChoice.then(function(result){
+if(result.outcome==='accepted'){
+toast('App installed!');
+document.getElementById('installBanner').classList.remove('show');
+}
+deferredPrompt=null;
+});
+} else {
+toast('Use browser menu to add to home screen');
+}
+}
+
+function dismissInstall(){
+installDismissed=true;
+document.getElementById('installBanner').classList.remove('show');
+localStorage.setItem('smartbell_install_dismiss',String(Date.now()));
+}
+
+window.addEventListener('beforeinstallprompt',function(e){
+e.preventDefault();
+deferredPrompt=e;
+showInstallBanner();
+});
+
+window.addEventListener('appinstalled',function(){
+document.getElementById('installBanner').classList.remove('show');
+deferredPrompt=null;
+toast('Smart Bell app installed!');
+});
+
+/* ========== CONTEXT HELP TOGGLE ========== */
+function toggleHelp(id){
+var el=document.getElementById(id);
+if(!el)return;
+if(el.classList.contains('show')){
+el.classList.remove('show');
+}else{
+document.querySelectorAll('.help-text.show').forEach(function(h){h.classList.remove('show')});
+el.classList.add('show');
+}
+}
+
+/* ========== SETUP WIZARD ========== */
+var wizStep=0;
+var wizData={schoolName:'',wifiSSID:'',wifiPass:'',wifiSkipped:false,timeMethod:'',eventSkipped:false};
+var wizWifiNetworks=[];
+
+function checkSetupWizard(){
+api('/api/setup/status').then(function(d){
+if(!d)return;
+if(d.firstBoot){
+setTimeout(function(){showWizard()},500);
+}
+});
+}
+
+function showWizard(){
+wizStep=0;
+wizData={schoolName:'',wifiSSID:'',wifiPass:'',wifiSkipped:false,timeMethod:'',eventSkipped:false};
+document.getElementById('wizardOverlay').style.display='flex';
+renderWizardStep();
+}
+
+function hideWizard(){
+document.getElementById('wizardOverlay').style.display='none';
+}
+
+function renderWizardStep(){
+var steps=document.querySelectorAll('.wizard-step');
+steps.forEach(function(s,i){
+s.className='wizard-step';
+if(i<wizStep)s.classList.add('done');
+else if(i===wizStep)s.classList.add('active');
+});
+
+var content=document.getElementById('wizContent');
+var nav=document.getElementById('wizNav');
+var skip=document.getElementById('wizSkip');
+var title=document.getElementById('wizTitle');
+var subtitle=document.getElementById('wizSubtitle');
+
+skip.innerHTML='';
+
+switch(wizStep){
+case 0: renderWizStep0(content,nav,title,subtitle);break;
+case 1: renderWizStep1(content,nav,title,subtitle,skip);break;
+case 2: renderWizStep2(content,nav,title,subtitle);break;
+case 3: renderWizStep3(content,nav,title,subtitle,skip);break;
+case 4: renderWizStep4(content,nav,title,subtitle);break;
+}
+}
+
+/* Step 0: Profile + School Name */
+function renderWizStep0(c,nav,t,st){
+t.innerHTML='\uD83C\uDF0D Welcome to Smart Bell';
+st.textContent='Step 1 of 5 — Choose your environment';
+var h='<div class="wizard-label">What type of institution is this?</div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">';
+PROFILES.forEach(function(pr){
+var sel=pr.id===currentProfile?' selected':'';
+h+='<div class="wizard-check'+sel+'" onclick="wizSelectProfile('+pr.id+')" id="wizProf'+pr.id+'">';
+h+='<span style="font-size:20px;margin-right:6px">'+pr.icon+'</span>';
+h+='<span class="wc-name">'+pr.name+'</span>';
+h+='</div>';
+});
+h+='</div>';
+h+='<div class="wizard-label" id="wizNameLabel">'+getProfile().label+'</div>';
+h+='<input type="text" class="wizard-input" id="wizSchoolName" maxlength="20" placeholder="e.g. '+getProfile().defName+'" style="text-transform:uppercase" value="'+wizData.schoolName+'">';
+h+='<div class="wizard-hint">Shown on the TFT display. Max 20 characters.</div>';
+c.innerHTML=h;
+nav.innerHTML='<button class="btn btn-primary" onclick="wizNext0()">Next &#x27A1;</button>';
+setTimeout(function(){var el=document.getElementById('wizSchoolName');if(el)el.focus()},200);
+}
+
+function wizSelectProfile(id){
+currentProfile=id;
+document.querySelectorAll('.wizard-check').forEach(function(el){el.classList.remove('selected')});
+var sel=document.getElementById('wizProf'+id);
+if(sel)sel.classList.add('selected');
+var lbl=document.getElementById('wizNameLabel');
+if(lbl)lbl.textContent=getProfile().label;
+var inp=document.getElementById('wizSchoolName');
+if(inp){
+inp.placeholder='e.g. '+getProfile().defName;
+if(!inp.value)inp.value='';
+}
+}
+
+function wizNext0(){
+var name=(document.getElementById('wizSchoolName').value||'').trim();
+if(!name){toast('Enter a name');return}
+if(name.length>20){toast('Max 20 characters');return}
+wizData.schoolName=name.toUpperCase();
+// Save profile first, then name
+postJSON('/api/profile',{profile:currentProfile}).then(function(pd){
+postJSON('/api/schoolname',{name:wizData.schoolName}).then(function(d){
+if(d&&d.success){
+wizStep=1;
+renderWizardStep();
+}else{
+toast('Error saving name');
+}
+});
+});
+}
+
+/* Step 1: WiFi */
+function renderWizStep1(c,nav,t,st,skip){
+t.innerHTML='&#x1F4F6; WiFi Connection';
+st.textContent='Step 2 of 5 — Connect to your WiFi for automatic time sync';
+c.innerHTML='<div id="wizWifiArea">'+
+'<button class="btn btn-outline mb8" onclick="wizScanWifi()" id="wizScanBtn">&#x1F504; Scan Networks</button>'+
+'<div id="wizWifiList" style="max-height:180px;overflow-y:auto;margin-bottom:10px"></div>'+
+'<div id="wizWifiForm" style="display:none">'+
+'<div class="wizard-label">Selected Network</div>'+
+'<input type="text" class="wizard-input" id="wizWifiSSID" readonly style="background:#1a1a3e">'+
+'<div class="wizard-label">Password</div>'+
+'<input type="password" class="wizard-input" id="wizWifiPass" placeholder="WiFi password">'+
+'</div>'+
+'</div>'+
+'<div class="wizard-hint">WiFi is optional. The device works fully offline. NTP time sync requires internet.</div>';
+nav.innerHTML='<button class="btn btn-outline" onclick="wizBack()">&larr; Back</button>'+
+'<button class="btn btn-primary" id="wizWifiNextBtn" onclick="wizNext1()">Next &#x27A1;</button>';
+skip.innerHTML='<a onclick="wizSkipWifi()">Skip — I\'ll set up WiFi later</a>';
+}
+
+function wizScanWifi(){
+var btn=document.getElementById('wizScanBtn');
+btn.textContent='Scanning...';btn.disabled=true;
+api('/api/wifi/scan').then(function(d){
+btn.textContent='\uD83D\uDD04 Scan Again';btn.disabled=false;
+if(!d)return;
+if(d.scanning){
+document.getElementById('wizWifiList').innerHTML='<div style="text-align:center;color:#888;padding:12px">Scanning... tap Scan again in 3 seconds</div>';
+setTimeout(function(){btn.disabled=false},3000);
+return;
+}
+wizWifiNetworks=d.networks||[];
+var el=document.getElementById('wizWifiList');
+if(wizWifiNetworks.length===0){
+el.innerHTML='<div style="text-align:center;color:#888;padding:12px">No networks found. Try again.</div>';
+return;
+}
+var h='';
+wizWifiNetworks.forEach(function(net){
+var ssidSafe=net.ssid.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+var lock=net.encrypted?'\uD83D\uDD12':'';
+h+='<div class="wizard-wifi-item" onclick="wizSelectWifi(\''+ssidSafe+'\','+net.encrypted+')">';
+h+='<div class="wizard-wifi-name">'+lock+' '+net.ssid+'</div>';
+h+='<div class="wizard-wifi-signal">'+net.quality+' ('+net.rssi+' dBm)</div>';
+h+='</div>';
+});
+el.innerHTML=h;
+});
+}
+
+function wizSelectWifi(ssid,encrypted){
+wizData.wifiSSID=ssid;
+document.getElementById('wizWifiSSID').value=ssid;
+document.getElementById('wizWifiForm').style.display='block';
+var passEl=document.getElementById('wizWifiPass');
+passEl.placeholder=encrypted?'Enter WiFi password':'Open network (no password)';
+passEl.focus();
+}
+
+function wizNext1(){
+if(!wizData.wifiSSID){
+wizSkipWifi();
+return;
+}
+var pass=(document.getElementById('wizWifiPass').value||'');
+wizData.wifiPass=pass;
+var btn=document.getElementById('wizWifiNextBtn');
+btn.textContent='Connecting...';btn.disabled=true;
+postJSON('/api/wifi/connect',{ssid:wizData.wifiSSID,password:pass}).then(function(d){
+btn.textContent='Next \u27A1';btn.disabled=false;
+if(d&&d.success){
+toast('Connecting to '+wizData.wifiSSID+'...');
+wizData.wifiSkipped=false;
+setTimeout(function(){wizStep=2;renderWizardStep()},2000);
+}else{
+toast('Error: '+(d?d.error:'Connection failed'));
+}
+});
+}
+
+function wizSkipWifi(){
+wizData.wifiSkipped=true;
+wizData.wifiSSID='';
+wizData.wifiPass='';
+wizStep=2;
+renderWizardStep();
+}
+
+/* Step 2: Date & Time */
+function renderWizStep2(c,nav,t,st){
+t.innerHTML='&#x23F0; Date & Time';
+st.textContent='Step 3 of 5 — Set the correct time';
+
+var now=new Date();
+var h='<div class="wizard-hint">Accurate time ensures bells ring on schedule.</div>';
+
+if(!wizData.wifiSkipped){
+h+='<button class="btn btn-green mb8" onclick="wizNtpSync()">&#x1F310; Sync from Internet (NTP)</button>';
+}
+h+='<button class="btn btn-outline mb8" onclick="wizPhoneSync()">&#x1F4F1; Sync from Phone</button>';
+h+='<div style="margin-top:8px;padding:10px;background:#0f0f1e;border-radius:8px">';
+h+='<div class="form-row"><label style="min-width:65px;color:#aaa">Year:</label><input type="number" class="wizard-input" id="wizY" min="2020" max="2099" value="'+now.getFullYear()+'" style="margin-bottom:4px"></div>';
+h+='<div class="form-row"><label style="min-width:65px;color:#aaa">Month:</label><input type="number" class="wizard-input" id="wizMo" min="1" max="12" value="'+(now.getMonth()+1)+'" style="margin-bottom:4px"></div>';
+h+='<div class="form-row"><label style="min-width:65px;color:#aaa">Day:</label><input type="number" class="wizard-input" id="wizD" min="1" max="31" value="'+now.getDate()+'" style="margin-bottom:4px"></div>';
+h+='<div class="form-row"><label style="min-width:65px;color:#aaa">Hour:</label><input type="number" class="wizard-input" id="wizH" min="0" max="23" value="'+now.getHours()+'" style="margin-bottom:4px"></div>';
+h+='<div class="form-row"><label style="min-width:65px;color:#aaa">Minute:</label><input type="number" class="wizard-input" id="wizMi" min="0" max="59" value="'+now.getMinutes()+'" style="margin-bottom:4px"></div>';
+h+='</div>';
+
+c.innerHTML=h;
+nav.innerHTML='<button class="btn btn-outline" onclick="wizBack()">&larr; Back</button>'+
+'<button class="btn btn-primary" onclick="wizNext2()">Next &#x27A1;</button>';
+}
+
+function wizPhoneSync(){
+var now=new Date();
+document.getElementById('wizY').value=now.getFullYear();
+document.getElementById('wizMo').value=now.getMonth()+1;
+document.getElementById('wizD').value=now.getDate();
+document.getElementById('wizH').value=now.getHours();
+document.getElementById('wizMi').value=now.getMinutes();
+toast('Phone time loaded');
+wizData.timeMethod='phone';
+}
+
+function wizNtpSync(){
+postAPI('/api/ntp/sync').then(function(d){
+if(d&&d.success){
+toast('NTP sync started — time will update shortly');
+wizData.timeMethod='ntp';
+setTimeout(function(){
+api('/api/time').then(function(td){
+if(!td)return;
+document.getElementById('wizY').value=td.year;
+document.getElementById('wizMo').value=td.month;
+document.getElementById('wizD').value=td.day;
+document.getElementById('wizH').value=td.hour;
+document.getElementById('wizMi').value=td.minute;
+});
+},3000);
+}else{
+toast('NTP failed — use phone sync instead');
+}
+});
+}
+
+function wizNext2(){
+var data={
+year:parseInt(document.getElementById('wizY').value),
+month:parseInt(document.getElementById('wizMo').value),
+day:parseInt(document.getElementById('wizD').value),
+hour:parseInt(document.getElementById('wizH').value),
+minute:parseInt(document.getElementById('wizMi').value),
+second:0
+};
+if(data.year<2020||data.year>2099||data.month<1||data.month>12||data.day<1||data.day>31){
+toast('Invalid date');return;
+}
+postJSON('/api/time',data).then(function(d){
+if(d&&d.success){
+wizStep=3;
+renderWizardStep();
+}else{
+toast('Error saving time');
+}
+});
+}
+
+/* Step 3: First Event */
+function renderWizStep3(c,nav,t,st,skip){
+t.innerHTML='&#x1F4C5; First Bell Event';
+st.textContent='Step 4 of 5 — Add your first scheduled '+getProfile().name.toLowerCase()+' bell';
+c.innerHTML='<div class="wizard-hint">Pre-filled with a typical morning assembly. Edit as needed.</div>'+
+'<div class="wizard-label">Event Name</div>'+
+'<input type="text" class="wizard-input" id="wizEvName" maxlength="15" value="'+getProfile().examples[0]+'">'+'<div class="wizard-label">Time</div>'+
+'<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">'+
+'<input type="number" class="wizard-input" id="wizEvH" min="0" max="23" value="8" style="width:70px;text-align:center">'+
+'<span style="font-size:24px;color:#888">:</span>'+
+'<input type="number" class="wizard-input" id="wizEvM" min="0" max="59" value="0" style="width:70px;text-align:center">'+
+'</div>'+
+'<div class="wizard-label">Days</div>'+
+'<div style="display:flex;gap:5px;margin-bottom:12px">'+
+'<input type="checkbox" id="wd0" class="day-check"><label for="wd0" class="day-label">Su</label>'+
+'<input type="checkbox" id="wd1" class="day-check" checked><label for="wd1" class="day-label">Mo</label>'+
+'<input type="checkbox" id="wd2" class="day-check" checked><label for="wd2" class="day-label">Tu</label>'+
+'<input type="checkbox" id="wd3" class="day-check" checked><label for="wd3" class="day-label">We</label>'+
+'<input type="checkbox" id="wd4" class="day-check" checked><label for="wd4" class="day-label">Th</label>'+
+'<input type="checkbox" id="wd5" class="day-check" checked><label for="wd5" class="day-label">Fr</label>'+
+'<input type="checkbox" id="wd6" class="day-check"><label for="wd6" class="day-label">Sa</label>'+
+'</div>'+
+'<div class="wizard-hint">Track 1 will be used. You can change tracks later in the Schedule tab.</div>';
+
+nav.innerHTML='<button class="btn btn-outline" onclick="wizBack()">&larr; Back</button>'+
+'<button class="btn btn-primary" onclick="wizNext3()">Add & Next &#x27A1;</button>';
+skip.innerHTML='<a onclick="wizSkipEvent()">Skip — I\'ll add events later</a>';
+}
+
+function wizNext3(){
+var name=(document.getElementById('wizEvName').value||'').trim();
+var h=parseInt(document.getElementById('wizEvH').value)||0;
+var m=parseInt(document.getElementById('wizEvM').value)||0;
+var mask=0;
+for(var i=0;i<7;i++){if(document.getElementById('wd'+i).checked)mask|=(1<<i)}
+if(mask===0){toast('Select at least one day');return}
+
+postJSON('/api/events',{name:name,hour:h,minute:m,weekdayMask:mask,folder:1,track:1,duration:0}).then(function(d){if(d&&d.success){
+wizData.eventSkipped=false;
+toast('Event added!');
+wizStep=4;
+renderWizardStep();
+}else{
+toast('Error: '+(d?d.error:'Failed'));
+}
+});
+}
+
+function wizSkipEvent(){
+wizData.eventSkipped=true;
+wizStep=4;
+renderWizardStep();
+}
+
+/* Step 4: Done */
+function renderWizStep4(c,nav,t,st){
+t.innerHTML='&#x2705; Setup Complete!';
+st.textContent='Your Smart Bell is ready to use';
+
+var h='<div class="wizard-done-icon">&#x1F389;</div>';
+h+='<div class="wizard-summary">';
+h+='<div class="ws-row"><span class="ws-label">Profile</span><span class="ws-value">'+getProfile().icon+' '+getProfile().name+'</span></div>';
+h+='<div class="ws-row"><span class="ws-label">'+getProfile().label+'</span><span class="ws-value">'+wizData.schoolName+'</span></div>';h+='<div class="ws-row"><span class="ws-label">WiFi</span><span class="ws-value">'+(wizData.wifiSkipped?'Skipped':wizData.wifiSSID)+'</span></div>';
+h+='<div class="ws-row"><span class="ws-label">Time</span><span class="ws-value">'+(wizData.timeMethod==='ntp'?'NTP synced':'Set manually')+'</span></div>';
+h+='<div class="ws-row"><span class="ws-label">First Event</span><span class="ws-value">'+(wizData.eventSkipped?'Skipped':'Added')+'</span></div>';
+h+='</div>';
+h+='<div class="wizard-hint">You can change all settings anytime from the Settings tab. Re-run this wizard from Settings > Setup Wizard.</div>';
+c.innerHTML=h;
+nav.innerHTML='<button class="btn btn-primary" onclick="wizFinish()" style="font-size:18px;padding:14px">&#x1F514; Start Using Smart Bell</button>';
+}
+
+function wizFinish(){
+postAPI('/api/setup/complete').then(function(d){
+hideWizard();
+toast('Setup complete! Welcome to Smart Bell');
+fetchStatus();
+loadEvents();
+});
+}
+
+function wizBack(){
+if(wizStep>0){wizStep--;renderWizardStep()}
+}
+
+function rerunWizard(){
+if(!confirm('Re-run the setup wizard? This will show the wizard again on next login.'))return;
+postAPI('/api/setup/reset').then(function(d){
+if(d&&d.success){
+toast('Wizard will show on next login');
+showWizard();
+}
+});
+}
+
+/* ========== HELP TAB ========== */
+function toggleHelpSection(id){
+var el=document.getElementById(id);
+if(!el)return;
+if(el.classList.contains('open')){
+el.classList.remove('open');
+}else{
+el.classList.add('open');
+}
+}
+
+function toggleFaq(id){
+var el=document.getElementById(id);
+if(!el)return;
+if(el.classList.contains('open')){
+el.classList.remove('open');
+}else{
+el.classList.add('open');
+}
+}
+
+function searchHelp(query){
+query=query.toLowerCase().trim();
+
+// Search help sections
+document.querySelectorAll('.help-section').forEach(function(section){
+if(!query){
+section.style.display='';
+return;
+}
+var keywords=(section.getAttribute('data-keywords')||'').toLowerCase();
+var title=section.querySelector('.help-section-title');
+var titleText=title?title.textContent.toLowerCase():'';
+var bodyEl=section.querySelector('.help-section-body');
+var bodyText=bodyEl?bodyEl.textContent.toLowerCase():'';
+
+if(keywords.indexOf(query)!==-1||titleText.indexOf(query)!==-1||bodyText.indexOf(query)!==-1){
+section.style.display='';
+section.classList.add('open');
+}else{
+section.style.display='none';
+}
+});
+
+// Search FAQ items within the FAQ section
+document.querySelectorAll('.faq-item').forEach(function(item){
+if(!query){
+item.classList.remove('faq-hidden');
+return;
+}
+var keywords=(item.getAttribute('data-keywords')||'').toLowerCase();
+var qText=item.querySelector('.faq-q-text');
+var qStr=qText?qText.textContent.toLowerCase():'';
+var aEl=item.querySelector('.faq-a');
+var aStr=aEl?aEl.textContent.toLowerCase():'';
+
+if(keywords.indexOf(query)!==-1||qStr.indexOf(query)!==-1||aStr.indexOf(query)!==-1){
+item.classList.remove('faq-hidden');
+item.classList.add('open');
+}else{
+item.classList.add('faq-hidden');
+}
+});
+}
+
+/* ========== ICS CALENDAR EXPORT ========== */
+function exportCalendar(){
+  var advance=document.getElementById('icsAdvance').value;
+  var url='/api/export-ics?advance='+advance;
+  var a=document.createElement('a');
+  a.href=url;
+  a.download='smartbell_schedule.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  toast('Calendar file downloaded. Open it to add to your calendar app.');
+}
+
+/* ========== INIT ========== */
+checkAuth();
+if(isAuthed){checkSetupWizard()}
+initTrackSelector();
+fetchStatus();
+document.getElementById('nameColorPicker').addEventListener('input',function(){document.getElementById('nameColorHex').textContent=this.value.toUpperCase()});
+document.getElementById('clockColorPicker').addEventListener('input',function(){document.getElementById('clockColorHex').textContent=this.value.toUpperCase()});
+loadSoundData();
+api('/api/profile').then(function(d){if(d){currentProfile=d.profile||0;updateProfileUI()}});
+setInterval(fetchStatus,3000);
+
+var today=new Date();
+var dd=String(today.getDate()).padStart(2,'0');
+var mm=String(today.getMonth()+1).padStart(2,'0');
+var yyyy=today.getFullYear();
+document.getElementById('holDate').value=yyyy+'-'+mm+'-'+dd;
+document.getElementById('evOneTimeDate').value=yyyy+'-'+mm+'-'+dd;
+
+setTimeout(showInstallBanner,3000);
+
+</script>
+</body>
+</html>
